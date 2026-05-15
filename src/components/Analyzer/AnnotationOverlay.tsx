@@ -7,6 +7,7 @@ import type { Annotation, AnnotationColor, Pt } from '../../types'
 interface AnnotationOverlayProps {
   annotations: Annotation[]
   onCommit: (annotation: Annotation) => void
+  onUpdate: (id: string, partial: Partial<Annotation>) => void
 }
 
 type DragDrawing =
@@ -19,29 +20,47 @@ type AnglePartial =
   | { vertex: Pt; color: AnnotationColor }
   | { vertex: Pt; a: Pt; color: AnnotationColor }
 
-export default function AnnotationOverlay({ annotations, onCommit }: AnnotationOverlayProps) {
+type LineEditing = { id: string; endpoint: 'a' | 'b'; draft: { a: Pt; b: Pt } } | undefined
+
+export default function AnnotationOverlay({ annotations, onCommit, onUpdate }: AnnotationOverlayProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const tool = useAppStore((s) => s.currentTool)
   const color = useAppStore((s) => s.currentColor)
   const [drawing, setDrawing] = useState<DragDrawing | undefined>()
   const [anglePartial, setAnglePartial] = useState<AnglePartial>(undefined)
+  const [selectedId, setSelectedId] = useState<string | undefined>()
+  const [editing, setEditing] = useState<LineEditing>()
 
-  const ptFrom = (e: React.PointerEvent): Pt => {
+  const ptFromClient = (clientX: number, clientY: number): Pt => {
     const svg = svgRef.current!
     const rect = svg.getBoundingClientRect()
-    const x = (e.clientX - rect.left) / rect.width
-    const y = (e.clientY - rect.top) / rect.height
+    const x = (clientX - rect.left) / rect.width
+    const y = (clientY - rect.top) / rect.height
     return [clamp01(x), clamp01(y)]
   }
 
-  // Reset the angle partial when the tool changes away from angle
+  const ptFrom = (e: React.PointerEvent): Pt => ptFromClient(e.clientX, e.clientY)
+
+  // Reset partial state when switching tools
   useEffect(() => {
     if (tool !== 'angle') setAnglePartial(undefined)
+    setSelectedId(undefined)
   }, [tool])
+
+  // Drop selection if the annotation goes away
+  useEffect(() => {
+    if (selectedId && !annotations.some((a) => a.id === selectedId)) {
+      setSelectedId(undefined)
+    }
+  }, [annotations, selectedId])
 
   const onPointerDown = (e: React.PointerEvent) => {
     e.currentTarget.setPointerCapture(e.pointerId)
     const p = ptFrom(e)
+
+    // Drawing always deselects.
+    if (selectedId) setSelectedId(undefined)
+
     switch (tool) {
       case 'freehand':
         setDrawing({ kind: 'freehand', color, points: [p] })
@@ -120,23 +139,131 @@ export default function AnnotationOverlay({ annotations, onCommit }: AnnotationO
     setDrawing(undefined)
   }
 
+  const onSelectLine = (id: string) => (e: React.PointerEvent) => {
+    e.stopPropagation()
+    setSelectedId(id)
+  }
+
+  const beginEditHandle = (line: Annotation & { type: 'line' }, endpoint: 'a' | 'b') => (e: React.PointerEvent) => {
+    e.stopPropagation()
+    setEditing({ id: line.id, endpoint, draft: { a: line.a, b: line.b } })
+
+    const onMove = (ev: PointerEvent) => {
+      const p = ptFromClient(ev.clientX, ev.clientY)
+      setEditing((cur) => {
+        if (!cur || cur.id !== line.id) return cur
+        return { ...cur, draft: { ...cur.draft, [endpoint]: p } }
+      })
+    }
+    const onUp = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+      const p = ptFromClient(ev.clientX, ev.clientY)
+      onUpdate(line.id, { [endpoint]: p })
+      setEditing(undefined)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+  }
+
+  const selectedLine = (() => {
+    if (!selectedId) return undefined
+    const a = annotations.find((x) => x.id === selectedId)
+    if (!a || a.type !== 'line') return undefined
+    return a
+  })()
+
+  const renderLineEndpoints =
+    selectedLine && editing && editing.id === selectedLine.id ? editing.draft : selectedLine
+
   return (
-    <svg
-      ref={svgRef}
-      className="absolute inset-0 h-full w-full touch-none"
-      viewBox="0 0 1000 1000"
-      preserveAspectRatio="none"
+    <>
+      <svg
+        ref={svgRef}
+        className="absolute inset-0 h-full w-full touch-none"
+        viewBox="0 0 1000 1000"
+        preserveAspectRatio="none"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+      >
+        {annotations.map((a) => {
+          if (a.type === 'line') {
+            const useDraft = editing && editing.id === a.id ? editing.draft : { a: a.a, b: a.b }
+            const isSelected = selectedId === a.id
+            return (
+              <g key={a.id} onPointerDown={onSelectLine(a.id)} style={{ cursor: 'pointer' }}>
+                <Line a={useDraft.a} b={useDraft.b} stroke={COLOR_VALUES[a.color]} bold={isSelected} />
+                {/* Invisible fat hit line for tap selection */}
+                <line
+                  x1={useDraft.a[0] * 1000}
+                  y1={useDraft.a[1] * 1000}
+                  x2={useDraft.b[0] * 1000}
+                  y2={useDraft.b[1] * 1000}
+                  stroke="transparent"
+                  strokeWidth={32}
+                  pointerEvents="stroke"
+                  strokeLinecap="round"
+                />
+              </g>
+            )
+          }
+          return <AnnotationShape key={a.id} annotation={a} />
+        })}
+        {drawing ? <DrawingPreview drawing={drawing} /> : null}
+        {anglePartial ? <AnglePartialMarker partial={anglePartial} /> : null}
+      </svg>
+
+      {/* Handles layer (DOM, percent-positioned so size doesn't stretch with aspect) */}
+      {selectedLine && renderLineEndpoints ? (
+        <div className="pointer-events-none absolute inset-0">
+          <Handle
+            color={COLOR_VALUES[selectedLine.color]}
+            position={'a' in renderLineEndpoints ? renderLineEndpoints.a : selectedLine.a}
+            onPointerDown={beginEditHandle(selectedLine, 'a')}
+          />
+          <Handle
+            color={COLOR_VALUES[selectedLine.color]}
+            position={'b' in renderLineEndpoints ? renderLineEndpoints.b : selectedLine.b}
+            onPointerDown={beginEditHandle(selectedLine, 'b')}
+          />
+        </div>
+      ) : null}
+    </>
+  )
+}
+
+function Handle({
+  position,
+  color,
+  onPointerDown,
+}: {
+  position: Pt
+  color: string
+  onPointerDown: (e: React.PointerEvent) => void
+}) {
+  return (
+    <div
+      className="pointer-events-auto absolute touch-none"
+      style={{
+        left: `${position[0] * 100}%`,
+        top: `${position[1] * 100}%`,
+        transform: 'translate(-50%, -50%)',
+        width: 44,
+        height: 44,
+      }}
       onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
     >
-      {annotations.map((a) => (
-        <AnnotationShape key={a.id} annotation={a} />
-      ))}
-      {drawing ? <DrawingPreview drawing={drawing} /> : null}
-      {anglePartial ? <AnglePartialMarker partial={anglePartial} /> : null}
-    </svg>
+      <svg width={44} height={44} viewBox="0 0 44 44" aria-hidden="true">
+        {/* Outer dashed ring */}
+        <circle cx={22} cy={22} r={11} fill="rgba(0,0,0,0.45)" stroke={color} strokeWidth={2} strokeDasharray="3 3" />
+        {/* Inner dot */}
+        <circle cx={22} cy={22} r={3.5} fill={color} />
+      </svg>
+    </div>
   )
 }
 
@@ -192,7 +319,7 @@ function Path({ points, stroke }: { points: Pt[]; stroke: string }) {
   return <path d={d} stroke={stroke} strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" fill="none" vectorEffect="non-scaling-stroke" />
 }
 
-function Line({ a, b, stroke }: { a: Pt; b: Pt; stroke: string }) {
+function Line({ a, b, stroke, bold = false }: { a: Pt; b: Pt; stroke: string; bold?: boolean }) {
   return (
     <line
       x1={a[0] * 1000}
@@ -200,7 +327,7 @@ function Line({ a, b, stroke }: { a: Pt; b: Pt; stroke: string }) {
       x2={b[0] * 1000}
       y2={b[1] * 1000}
       stroke={stroke}
-      strokeWidth={4}
+      strokeWidth={bold ? 5 : 4}
       strokeLinecap="round"
       vectorEffect="non-scaling-stroke"
     />

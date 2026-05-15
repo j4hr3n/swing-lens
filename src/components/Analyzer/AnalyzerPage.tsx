@@ -8,8 +8,7 @@ import ScrubBar from './ScrubBar'
 import PlaybackControls from './PlaybackControls'
 import ToolPalette from './ToolPalette'
 import AnnotationOverlay from './AnnotationOverlay'
-import Brackets from '../shared/Brackets'
-import { IconBack } from '../shared/Icons'
+import { IconBack, IconTrash, IconUndo } from '../shared/Icons'
 import { db } from '../../lib/db'
 import type { Annotation } from '../../types'
 
@@ -53,6 +52,11 @@ export default function AnalyzerPage() {
   }
 
   const commitAnnotation = (a: Annotation) => persist([...annotations, a])
+  const updateAnnotation = (annotationId: string, partial: Partial<Annotation>) => {
+    persist(
+      annotations.map((a) => (a.id === annotationId ? ({ ...a, ...partial } as Annotation) : a)),
+    )
+  }
   const undo = () => persist(annotations.slice(0, -1))
   const clearAll = () => persist([])
 
@@ -80,39 +84,13 @@ export default function AnalyzerPage() {
   const total = stepper.totalFrames
   const currentFrame = stepper.frameIndex
   const paddedFrame = String(currentFrame).padStart(String(Math.max(total - 1, 0)).length, '0')
+  const canUndo = annotations.length > 0
+  const canClear = annotations.length > 0
 
   return (
-    <div className="flex h-full flex-col bg-[color:var(--color-bg)]">
-      <header
-        className="flex items-center gap-3 px-3 pb-3 pt-2 hairline-b"
-        style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top))' }}
-      >
-        <Link
-          to="/"
-          aria-label="Back"
-          className="flex h-11 w-11 items-center justify-center rounded-full text-[color:var(--color-text-muted)] active:bg-[color:var(--color-bg-elevated)] active:text-[color:var(--color-text)]"
-        >
-          <IconBack size={20} />
-        </Link>
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-[14px] font-medium leading-tight text-[color:var(--color-text)]">
-            {recording.name}
-          </h1>
-          <p className="mt-1 flex items-center gap-1.5 numeric text-[10px] uppercase tracking-[0.16em] text-[color:var(--color-text-muted)]">
-            <span>Frame {paddedFrame}<span className="opacity-50"> / {Math.max(total - 1, 0)}</span></span>
-            <span className="h-2.5 w-px bg-[color:var(--color-border)]" />
-            <span>{fps} fps</span>
-          </p>
-        </div>
-        <div
-          className="flex h-11 w-11 items-center justify-center font-mono text-[10px] uppercase tracking-[0.18em] text-[color:var(--color-text-muted)]"
-          aria-hidden="true"
-        >
-          SL
-        </div>
-      </header>
-
-      <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-black">
+    <div className="relative h-full w-full overflow-hidden bg-black">
+      {/* Video + annotation layer */}
+      <div className="absolute inset-0 flex items-center justify-center">
         {videoUrl ? (
           <div
             className="relative"
@@ -131,8 +109,11 @@ export default function AnalyzerPage() {
               preload="auto"
               className="absolute inset-0 h-full w-full"
             />
-            <AnnotationOverlay annotations={annotations} onCommit={commitAnnotation} />
-            <Brackets active={annotations.length > 0} />
+            <AnnotationOverlay
+              annotations={annotations}
+              onCommit={commitAnnotation}
+              onUpdate={updateAnnotation}
+            />
           </div>
         ) : (
           <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-[color:var(--color-text-muted)] sl-pulse">
@@ -141,27 +122,79 @@ export default function AnalyzerPage() {
         )}
       </div>
 
-      <div className="pb-[max(0.25rem,env(safe-area-inset-bottom))] hairline-t">
-        <ToolPalette
-          onUndo={undo}
-          onClear={clearAll}
-          canUndo={annotations.length > 0}
-          canClear={annotations.length > 0}
-        />
-        <ScrubBar
-          frameIndex={stepper.frameIndex}
-          totalFrames={stepper.totalFrames}
-          fps={fps}
-          onSeekFrame={stepper.seekToFrame}
-        />
-        <PlaybackControls
-          playing={state.playing}
-          speed={speed}
-          onTogglePlay={togglePlay}
-          onSpeedChange={setSpeed}
-          onStepBack={() => stepper.step(-1)}
-          onStepForward={() => stepper.step(1)}
-        />
+      {/* Top overlay: header */}
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-black/85 via-black/45 to-transparent"
+      >
+        <div
+          className="flex items-center gap-2 px-2 pb-6"
+          style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top))' }}
+        >
+          <Link
+            to="/"
+            aria-label="Back"
+            className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full text-[color:var(--color-text)] active:bg-white/10"
+          >
+            <IconBack size={20} />
+          </Link>
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-[14px] font-medium leading-tight text-[color:var(--color-text)]">
+              {recording.name}
+            </h1>
+            <p className="mt-0.5 flex items-center gap-1.5 numeric text-[10px] uppercase tracking-[0.16em] text-[color:var(--color-text-muted)]">
+              <span>
+                Frame {paddedFrame}
+                <span className="opacity-50"> / {Math.max(total - 1, 0)}</span>
+              </span>
+              <span className="h-2.5 w-px bg-white/20" />
+              <span>{fps} fps</span>
+            </p>
+          </div>
+          <button
+            type="button"
+            aria-label="Undo"
+            disabled={!canUndo}
+            onClick={undo}
+            className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-md text-[color:var(--color-text-muted)] active:bg-white/10 active:text-[color:var(--color-text)] disabled:opacity-25"
+          >
+            <IconUndo size={18} />
+          </button>
+          <button
+            type="button"
+            aria-label="Clear all"
+            disabled={!canClear}
+            onClick={clearAll}
+            className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-md text-[color:var(--color-text-muted)] active:bg-white/10 active:text-[color:var(--color-danger)] disabled:opacity-25"
+          >
+            <IconTrash size={18} />
+          </button>
+        </div>
+      </div>
+
+      {/* Bottom overlay: scrub + tool palette + playback */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/85 via-black/50 to-transparent">
+        <div
+          className="pt-6"
+          style={{ paddingBottom: 'max(0.25rem, env(safe-area-inset-bottom))' }}
+        >
+          <ScrubBar
+            frameIndex={stepper.frameIndex}
+            totalFrames={stepper.totalFrames}
+            fps={fps}
+            onSeekFrame={stepper.seekToFrame}
+          />
+          <div className="pointer-events-auto flex items-center justify-between gap-2 px-3 py-1.5">
+            <ToolPalette />
+            <PlaybackControls
+              playing={state.playing}
+              speed={speed}
+              onTogglePlay={togglePlay}
+              onSpeedChange={setSpeed}
+              onStepBack={() => stepper.step(-1)}
+              onStepForward={() => stepper.step(1)}
+            />
+          </div>
+        </div>
       </div>
     </div>
   )
