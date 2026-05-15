@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { format, isToday, isYesterday } from 'date-fns'
 import { useRecordings } from '../../hooks/useRecordings'
 import { deleteRecording, renameRecording } from '../../lib/recordings'
-import RecordingRow from './RecordingRow'
+import RecordingTile from './RecordingTile'
 import ImportSheet from './ImportSheet'
 import RecordingMenu from './RecordingMenu'
 import RenameDialog from '../shared/RenameDialog'
@@ -11,6 +12,12 @@ import Wordmark from '../shared/Wordmark'
 import { IconPlus, IconSettings } from '../shared/Icons'
 import type { Recording } from '../../types'
 
+interface DateGroup {
+  key: string
+  label: string
+  items: Recording[]
+}
+
 export default function LibraryPage() {
   const recordings = useRecordings()
   const [showImport, setShowImport] = useState(false)
@@ -18,7 +25,27 @@ export default function LibraryPage() {
   const [renameFor, setRenameFor] = useState<Recording | undefined>()
   const [pendingDelete, setPendingDelete] = useState<Recording | undefined>()
 
-  const count = recordings?.length ?? 0
+  const groups = useMemo<DateGroup[]>(() => {
+    if (!recordings) return []
+    const map = new Map<string, DateGroup>()
+    const thisYear = new Date().getFullYear()
+    for (const r of recordings) {
+      const d = new Date(r.createdAt)
+      const key = format(d, 'yyyy-MM-dd')
+      let g = map.get(key)
+      if (!g) {
+        let label: string
+        if (isToday(d)) label = 'Today'
+        else if (isYesterday(d)) label = 'Yesterday'
+        else if (d.getFullYear() === thisYear) label = format(d, 'EEEE, MMM d')
+        else label = format(d, 'MMM d, yyyy')
+        g = { key, label, items: [] }
+        map.set(key, g)
+      }
+      g.items.push(r)
+    }
+    return Array.from(map.values())
+  }, [recordings])
 
   return (
     <div className="flex h-full flex-col bg-[color:var(--color-bg)] text-[color:var(--color-text)]">
@@ -46,20 +73,24 @@ export default function LibraryPage() {
         ) : recordings.length === 0 ? (
           <EmptyState onAdd={() => setShowImport(true)} />
         ) : (
-          <>
-            <CounterMoment count={count} />
-            <ul className="flex flex-col">
-              {recordings.map((r, i) => (
-                <li
-                  key={r.id}
-                  className="sl-rise"
-                  style={{ animationDelay: `${Math.min(i * 35, 280)}ms` }}
-                >
-                  <RecordingRow recording={r} onMenu={setMenuFor} />
-                </li>
-              ))}
-            </ul>
-          </>
+          <div className="flex flex-col gap-6">
+            {groups.map((g, gi) => (
+              <section
+                key={g.key}
+                className="sl-rise"
+                style={{ animationDelay: `${Math.min(gi * 80, 280)}ms` }}
+              >
+                <h2 className="mb-3 label-eyebrow text-[color:var(--color-text-muted)]">
+                  {g.label}
+                </h2>
+                <div className="grid grid-cols-3 gap-2">
+                  {g.items.map((r) => (
+                    <RecordingTile key={r.id} recording={r} onMenu={setMenuFor} />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
         )}
       </main>
 
@@ -103,20 +134,6 @@ export default function LibraryPage() {
           setPendingDelete(undefined)
         }}
       />
-    </div>
-  )
-}
-
-function CounterMoment({ count }: { count: number }) {
-  const padded = String(count).padStart(2, '0')
-  return (
-    <div className="mb-5 flex items-baseline gap-3">
-      <span className="numeric text-[32px] font-medium leading-none text-[color:var(--color-text)]">
-        <span className="border-b-2 border-[color:var(--color-accent)] pb-1">{padded}</span>
-      </span>
-      <span className="label-eyebrow text-[color:var(--color-text-muted)]">
-        Swings <span className="mx-1 opacity-50">·</span> Library
-      </span>
     </div>
   )
 }
