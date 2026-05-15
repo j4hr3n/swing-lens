@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useRecording } from '../../hooks/useRecordings'
 import { useObjectUrl } from '../../hooks/useObjectUrl'
 import { useVideoState } from '../../hooks/useVideoState'
+import { useFrameStepper } from '../../hooks/useFrameStepper'
 import ScrubBar from './ScrubBar'
 import PlaybackControls from './PlaybackControls'
 
@@ -13,6 +14,10 @@ export default function AnalyzerPage() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const state = useVideoState(videoRef)
   const [speed, setSpeed] = useState(1)
+
+  const fps = recording?.fps ?? 30
+  const duration = state.duration || recording?.duration || 0
+  const stepper = useFrameStepper(videoRef, fps, duration)
 
   useEffect(() => {
     if (videoRef.current) videoRef.current.playbackRate = speed
@@ -25,12 +30,6 @@ export default function AnalyzerPage() {
     else v.pause()
   }
 
-  const seek = (time: number) => {
-    const v = videoRef.current
-    if (!v) return
-    v.currentTime = time
-  }
-
   if (recording === undefined) {
     return (
       <CenteredMessage>
@@ -39,7 +38,7 @@ export default function AnalyzerPage() {
     )
   }
 
-  if (recording === null || !recording) {
+  if (!recording) {
     return (
       <CenteredMessage>
         <p className="text-sm">Recording not found.</p>
@@ -84,16 +83,18 @@ export default function AnalyzerPage() {
 
       <div className="pb-[max(0.5rem,env(safe-area-inset-bottom))]">
         <ScrubBar
-          currentTime={state.currentTime}
-          duration={state.duration || recording.duration}
-          fps={recording.fps}
-          onSeek={seek}
+          frameIndex={stepper.frameIndex}
+          totalFrames={stepper.totalFrames}
+          fps={fps}
+          onSeekFrame={stepper.seekToFrame}
         />
         <PlaybackControls
           playing={state.playing}
           speed={speed}
           onTogglePlay={togglePlay}
           onSpeedChange={setSpeed}
+          onStepBack={() => stepper.step(-1)}
+          onStepForward={() => stepper.step(1)}
         />
       </div>
     </div>
