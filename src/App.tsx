@@ -6,7 +6,7 @@ import SettingsPage from './components/Settings/SettingsPage'
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
       <Routes>
         <Route path="/" element={<LibraryPage />} />
         <Route path="/analyzer/:id" element={<AnalyzerPage />} />
