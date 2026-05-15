@@ -6,6 +6,9 @@ import { useVideoState } from '../../hooks/useVideoState'
 import { useFrameStepper } from '../../hooks/useFrameStepper'
 import ScrubBar from './ScrubBar'
 import PlaybackControls from './PlaybackControls'
+import ToolPalette from './ToolPalette'
+import AnnotationOverlay from './AnnotationOverlay'
+import type { Annotation } from '../../types'
 
 export default function AnalyzerPage() {
   const { id } = useParams()
@@ -14,6 +17,7 @@ export default function AnalyzerPage() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const state = useVideoState(videoRef)
   const [speed, setSpeed] = useState(1)
+  const [annotations, setAnnotations] = useState<Annotation[]>([])
 
   const fps = recording?.fps ?? 30
   const duration = state.duration || recording?.duration || 0
@@ -29,6 +33,10 @@ export default function AnalyzerPage() {
     if (v.paused) void v.play()
     else v.pause()
   }
+
+  const commitAnnotation = (a: Annotation) => setAnnotations((prev) => [...prev, a])
+  const undo = () => setAnnotations((prev) => prev.slice(0, -1))
+  const clearAll = () => setAnnotations([])
 
   if (recording === undefined) {
     return (
@@ -50,7 +58,7 @@ export default function AnalyzerPage() {
   return (
     <div className="flex h-full flex-col bg-[color:var(--color-bg)]">
       <header
-        className="flex items-center justify-between gap-2 px-2 pb-2 pt-2"
+        className="flex items-center justify-between gap-2 px-2 pb-1 pt-2"
         style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top))' }}
       >
         <Link
@@ -66,22 +74,39 @@ export default function AnalyzerPage() {
         <div className="h-10 w-10" />
       </header>
 
-      <div className="flex flex-1 items-center justify-center bg-black">
+      <div className="flex flex-1 items-center justify-center overflow-hidden bg-black">
         {videoUrl ? (
-          <video
-            ref={videoRef}
-            src={videoUrl}
-            playsInline
-            muted
-            preload="auto"
-            className="max-h-full max-w-full"
-          />
+          <div
+            className="relative"
+            style={{
+              aspectRatio: `${recording.width} / ${recording.height}`,
+              maxWidth: '100%',
+              maxHeight: '100%',
+              width: '100%',
+            }}
+          >
+            <video
+              ref={videoRef}
+              src={videoUrl}
+              playsInline
+              muted
+              preload="auto"
+              className="absolute inset-0 h-full w-full"
+            />
+            <AnnotationOverlay annotations={annotations} onCommit={commitAnnotation} />
+          </div>
         ) : (
           <p className="text-sm text-[color:var(--color-text-muted)]">Loading video…</p>
         )}
       </div>
 
-      <div className="pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+      <div className="pb-[max(0.25rem,env(safe-area-inset-bottom))]">
+        <ToolPalette
+          onUndo={undo}
+          onClear={clearAll}
+          canUndo={annotations.length > 0}
+          canClear={annotations.length > 0}
+        />
         <ScrubBar
           frameIndex={stepper.frameIndex}
           totalFrames={stepper.totalFrames}
