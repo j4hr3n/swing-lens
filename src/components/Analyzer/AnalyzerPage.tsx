@@ -8,6 +8,7 @@ import ScrubBar from './ScrubBar'
 import PlaybackControls from './PlaybackControls'
 import ToolPalette from './ToolPalette'
 import AnnotationOverlay from './AnnotationOverlay'
+import { db } from '../../lib/db'
 import type { Annotation } from '../../types'
 
 export default function AnalyzerPage() {
@@ -18,6 +19,7 @@ export default function AnalyzerPage() {
   const state = useVideoState(videoRef)
   const [speed, setSpeed] = useState(1)
   const [annotations, setAnnotations] = useState<Annotation[]>([])
+  const hydratedFor = useRef<string | undefined>(undefined)
 
   const fps = recording?.fps ?? 30
   const duration = state.duration || recording?.duration || 0
@@ -27,6 +29,21 @@ export default function AnalyzerPage() {
     if (videoRef.current) videoRef.current.playbackRate = speed
   }, [speed, videoUrl])
 
+  // Hydrate annotations once per recording id
+  useEffect(() => {
+    if (recording && hydratedFor.current !== recording.id) {
+      hydratedFor.current = recording.id
+      setAnnotations(recording.annotations ?? [])
+    }
+  }, [recording])
+
+  const persist = (next: Annotation[]) => {
+    setAnnotations(next)
+    if (recording) {
+      void db.recordings.update(recording.id, { annotations: next })
+    }
+  }
+
   const togglePlay = () => {
     const v = videoRef.current
     if (!v) return
@@ -34,9 +51,9 @@ export default function AnalyzerPage() {
     else v.pause()
   }
 
-  const commitAnnotation = (a: Annotation) => setAnnotations((prev) => [...prev, a])
-  const undo = () => setAnnotations((prev) => prev.slice(0, -1))
-  const clearAll = () => setAnnotations([])
+  const commitAnnotation = (a: Annotation) => persist([...annotations, a])
+  const undo = () => persist(annotations.slice(0, -1))
+  const clearAll = () => persist([])
 
   if (recording === undefined) {
     return (
