@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Sheet from '../shared/Sheet'
 import { importRecording } from '../../lib/recordings'
+import { IconArrowRight, IconCamera, IconFile } from '../shared/Icons'
 
 interface ImportSheetProps {
   open: boolean
@@ -30,44 +31,34 @@ export default function ImportSheet({ open, onClose }: ImportSheetProps) {
   }
 
   return (
-    <Sheet open={open} onClose={busy ? () => {} : onClose} title="Add a swing">
+    <Sheet open={open} onClose={busy ? () => {} : onClose} kicker="New" title="Add a swing">
       <div className="flex flex-col gap-2">
-        <button
-          type="button"
+        <ChoiceButton
           disabled={busy}
           onClick={() => fileInputRef.current?.click()}
-          className="flex w-full items-center gap-3 rounded-xl bg-[color:var(--color-bg-input)] p-4 text-left active:opacity-80 disabled:opacity-50"
-        >
-          <span aria-hidden="true" className="text-xl">📂</span>
-          <span>
-            <span className="block text-sm font-medium">Import from camera roll</span>
-            <span className="block text-xs text-[color:var(--color-text-muted)]">
-              Best for 240fps slo-mo — record with iPhone Camera, import here
-            </span>
-          </span>
-        </button>
-        <button
-          type="button"
+          icon={<IconFile size={20} />}
+          label="Import from camera roll"
+          hint="Best for 240 fps slo-mo — record with iPhone Camera, import here"
+        />
+        <ChoiceButton
           disabled={busy}
           onClick={() => {
             onClose()
             navigate('/capture')
           }}
-          className="flex w-full items-center gap-3 rounded-xl bg-[color:var(--color-bg-input)] p-4 text-left active:opacity-80 disabled:opacity-50"
-        >
-          <span aria-hidden="true" className="text-xl">🎥</span>
-          <span>
-            <span className="block text-sm font-medium">Record now</span>
-            <span className="block text-xs text-[color:var(--color-text-muted)]">
-              In-app capture (30–60fps depending on device)
-            </span>
-          </span>
-        </button>
+          icon={<IconCamera size={20} />}
+          label="Record now"
+          hint="In-app capture — 30 to 60 fps depending on device"
+        />
       </div>
       {busy ? (
-        <p className="mt-3 text-center text-xs text-[color:var(--color-text-muted)]">Importing…</p>
+        <p className="mt-4 text-center font-mono text-[10px] uppercase tracking-[0.22em] text-[color:var(--color-text-muted)] sl-pulse">
+          Importing source…
+        </p>
       ) : null}
-      {error ? <p className="mt-3 text-center text-xs text-red-400">{error}</p> : null}
+      {error ? (
+        <p className="mt-4 text-center text-[12px] text-[color:var(--color-danger)]">{error}</p>
+      ) : null}
       <input
         ref={fileInputRef}
         type="file"
@@ -80,5 +71,41 @@ export default function ImportSheet({ open, onClose }: ImportSheetProps) {
         }}
       />
     </Sheet>
+  )
+}
+
+function ChoiceButton({
+  disabled,
+  onClick,
+  icon,
+  label,
+  hint,
+}: {
+  disabled?: boolean
+  onClick: () => void
+  icon: React.ReactNode
+  label: string
+  hint: string
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className="group flex w-full items-center gap-3 border border-[color:var(--color-border)] bg-transparent px-4 py-3.5 text-left transition-colors active:bg-[color:var(--color-bg-input)] disabled:opacity-50"
+    >
+      <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center border border-[color:var(--color-border)] text-[color:var(--color-text)]">
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[14px] font-medium text-[color:var(--color-text)]">{label}</span>
+        <span className="mt-0.5 block text-[11px] leading-relaxed text-[color:var(--color-text-muted)]">
+          {hint}
+        </span>
+      </span>
+      <span className="flex-shrink-0 text-[color:var(--color-text-muted)] transition-transform group-active:translate-x-0.5">
+        <IconArrowRight size={16} />
+      </span>
+    </button>
   )
 }

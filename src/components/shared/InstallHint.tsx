@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { IconClose, IconShare } from './Icons'
 
 const STORAGE_KEY = 'swing-lens:install-hint-dismissed'
 
@@ -32,14 +33,16 @@ export default function InstallHint() {
   if (!show) return null
 
   return (
-    <div
-      className="mx-3 mt-2 flex items-start gap-2 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-elevated)] p-3 text-xs text-[color:var(--color-text-muted)]"
-    >
-      <span aria-hidden="true">📲</span>
+    <div className="mx-5 mt-3 flex items-start gap-3 border border-[color:var(--color-border)] bg-[color:var(--color-bg-elevated)] px-3.5 py-3 sl-slide-down">
+      <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center text-[color:var(--color-accent)]">
+        <IconShare size={16} />
+      </span>
       <div className="flex-1 leading-snug">
-        Install Swing Lens — tap{' '}
-        <ShareIcon /> in Safari, then{' '}
-        <span className="font-medium text-[color:var(--color-text)]">Add to Home Screen</span>.
+        <p className="label-eyebrow-sm text-[color:var(--color-accent)]">Install</p>
+        <p className="mt-1 text-[12px] leading-relaxed text-[color:var(--color-text-muted)]">
+          Tap <ShareInline /> in Safari, then{' '}
+          <span className="font-medium text-[color:var(--color-text)]">Add to Home Screen</span> for a full-screen lens.
+        </p>
       </div>
       <button
         type="button"
@@ -48,23 +51,18 @@ export default function InstallHint() {
           localStorage.setItem(STORAGE_KEY, '1')
           setShow(false)
         }}
-        className="text-[color:var(--color-text-muted)] active:opacity-60"
+        className="-mr-1 -mt-1 flex h-7 w-7 flex-shrink-0 items-center justify-center text-[color:var(--color-text-muted)] active:text-[color:var(--color-text)]"
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
-          <line x1="6" y1="6" x2="18" y2="18" />
-          <line x1="6" y1="18" x2="18" y2="6" />
-        </svg>
+        <IconClose size={14} />
       </button>
     </div>
   )
 }
 
-function ShareIcon() {
+function ShareInline() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="inline-block align-text-bottom" aria-hidden="true">
-      <path d="M12 4v12" />
-      <polyline points="8,8 12,4 16,8" />
-      <path d="M20 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-5" />
-    </svg>
+    <span className="mx-0.5 inline-flex h-3.5 w-3.5 translate-y-[2px] items-center justify-center text-[color:var(--color-text)]">
+      <IconShare size={12} />
+    </span>
   )
 }

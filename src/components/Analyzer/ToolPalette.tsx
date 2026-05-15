@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { useAppStore } from '../../store/app'
 import type { AnnotationColor, ToolId } from '../../types'
 import { COLOR_ORDER, COLOR_VALUES } from '../../lib/colors'
+import { IconAngle, IconCircle, IconLine, IconPen, IconTrash, IconUndo } from '../shared/Icons'
 
 interface ToolPaletteProps {
   onUndo: () => void
@@ -11,43 +12,10 @@ interface ToolPaletteProps {
 }
 
 const TOOLS: { id: ToolId; label: string; icon: ReactNode }[] = [
-  {
-    id: 'line',
-    label: 'Line',
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-        <line x1="5" y1="19" x2="19" y2="5" />
-      </svg>
-    ),
-  },
-  {
-    id: 'circle',
-    label: 'Circle',
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-        <circle cx="12" cy="12" r="7" />
-      </svg>
-    ),
-  },
-  {
-    id: 'freehand',
-    label: 'Pen',
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-        <path d="M5 19c2-7 7-3 9-9s-2-5 5-7" />
-      </svg>
-    ),
-  },
-  {
-    id: 'angle',
-    label: 'Angle',
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-        <polyline points="4,20 4,4 20,20" />
-        <path d="M9.5 20a6 6 0 0 0 -5.5 -5.5" />
-      </svg>
-    ),
-  },
+  { id: 'line', label: 'Line', icon: <IconLine size={18} /> },
+  { id: 'circle', label: 'Circle', icon: <IconCircle size={18} /> },
+  { id: 'freehand', label: 'Pen', icon: <IconPen size={18} /> },
+  { id: 'angle', label: 'Angle', icon: <IconAngle size={18} /> },
 ]
 
 export default function ToolPalette({ onUndo, onClear, canUndo, canClear }: ToolPaletteProps) {
@@ -57,8 +25,11 @@ export default function ToolPalette({ onUndo, onClear, canUndo, canClear }: Tool
   const setColor = useAppStore((s) => s.setColor)
 
   return (
-    <div className="flex items-center gap-2 overflow-x-auto px-3 py-2">
-      <div className="flex gap-1.5">
+    <div className="flex items-center gap-2 overflow-x-auto px-4 py-2.5">
+      <span className="label-eyebrow-sm pr-0.5 text-[color:var(--color-text-muted)]" aria-hidden="true">
+        Ch
+      </span>
+      <div className="flex gap-1">
         {COLOR_ORDER.map((color) => (
           <ColorSwatch
             key={color}
@@ -68,50 +39,59 @@ export default function ToolPalette({ onUndo, onClear, canUndo, canClear }: Tool
           />
         ))}
       </div>
-      <div className="mx-1 h-6 w-px bg-[color:var(--color-border)]" />
-      <div className="flex gap-1">
-        {TOOLS.map((tool) => (
-          <button
-            key={tool.id}
-            type="button"
-            aria-label={tool.label}
-            aria-pressed={tool.id === currentTool}
-            onClick={() => setTool(tool.id)}
-            className={
-              'flex h-10 w-10 items-center justify-center rounded-full ' +
-              (tool.id === currentTool
-                ? 'bg-[color:var(--color-accent)] text-black'
-                : 'bg-[color:var(--color-bg-elevated)] text-[color:var(--color-text-muted)]')
-            }
-          >
-            {tool.icon}
-          </button>
-        ))}
+
+      <div className="mx-2 h-5 w-px bg-[color:var(--color-border)]" />
+
+      <span className="label-eyebrow-sm pr-0.5 text-[color:var(--color-text-muted)]" aria-hidden="true">
+        Tool
+      </span>
+      <div className="flex gap-0.5">
+        {TOOLS.map((tool) => {
+          const active = tool.id === currentTool
+          return (
+            <button
+              key={tool.id}
+              type="button"
+              aria-label={tool.label}
+              aria-pressed={active}
+              onClick={() => setTool(tool.id)}
+              className={
+                'relative flex h-10 w-10 items-center justify-center transition-colors ' +
+                (active
+                  ? 'text-[color:var(--color-text)]'
+                  : 'text-[color:var(--color-text-muted)] active:text-[color:var(--color-text)]')
+              }
+            >
+              {tool.icon}
+              <span
+                className={
+                  'pointer-events-none absolute bottom-1 left-1/2 h-px w-5 -translate-x-1/2 transition-colors ' +
+                  (active ? 'bg-[color:var(--color-accent)]' : 'bg-transparent')
+                }
+              />
+            </button>
+          )
+        })}
       </div>
-      <div className="ml-auto flex gap-1">
+
+      <div className="ml-auto flex gap-0.5">
         <button
           type="button"
           aria-label="Undo"
           disabled={!canUndo}
           onClick={onUndo}
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--color-bg-elevated)] text-[color:var(--color-text-muted)] disabled:opacity-30"
+          className="flex h-10 w-10 items-center justify-center text-[color:var(--color-text-muted)] active:text-[color:var(--color-text)] disabled:opacity-25"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-            <path d="M9 14l-5 -5 5 -5" />
-            <path d="M4 9h12a4 4 0 0 1 4 4v0a4 4 0 0 1 -4 4h-7" />
-          </svg>
+          <IconUndo size={18} />
         </button>
         <button
           type="button"
           aria-label="Clear all"
           disabled={!canClear}
           onClick={onClear}
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--color-bg-elevated)] text-[color:var(--color-text-muted)] disabled:opacity-30"
+          className="flex h-10 w-10 items-center justify-center text-[color:var(--color-text-muted)] active:text-[color:var(--color-danger)] disabled:opacity-25"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-            <polyline points="3,6 5,6 21,6" />
-            <path d="M19 6l-1 14a2 2 0 0 1 -2 2H8a2 2 0 0 1 -2 -2L5 6" />
-          </svg>
+          <IconTrash size={18} />
         </button>
       </div>
     </div>
@@ -133,12 +113,24 @@ function ColorSwatch({
       aria-label={`Color ${color}`}
       aria-pressed={active}
       onClick={onSelect}
-      className="relative flex h-9 w-9 items-center justify-center rounded-full active:scale-95"
-      style={{
-        background: COLOR_VALUES[color],
-        outline: active ? '2px solid #fff' : 'none',
-        outlineOffset: active ? '2px' : '0',
-      }}
-    />
+      className="relative flex h-8 w-8 items-center justify-center transition-transform active:scale-95"
+    >
+      <span
+        className="block h-5 w-5"
+        style={{
+          background: COLOR_VALUES[color],
+          borderRadius: '2px',
+          boxShadow: active
+            ? `0 0 0 1.5px var(--color-text), 0 0 0 3px var(--color-bg)`
+            : 'none',
+        }}
+      />
+      {active ? (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rotate-45 bg-[color:var(--color-accent)]"
+        />
+      ) : null}
+    </button>
   )
 }

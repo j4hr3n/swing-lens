@@ -8,6 +8,8 @@ import ScrubBar from './ScrubBar'
 import PlaybackControls from './PlaybackControls'
 import ToolPalette from './ToolPalette'
 import AnnotationOverlay from './AnnotationOverlay'
+import Brackets from '../shared/Brackets'
+import { IconBack } from '../shared/Icons'
 import { db } from '../../lib/db'
 import type { Annotation } from '../../types'
 
@@ -29,7 +31,6 @@ export default function AnalyzerPage() {
     if (videoRef.current) videoRef.current.playbackRate = speed
   }, [speed, videoUrl])
 
-  // Hydrate annotations once per recording id
   useEffect(() => {
     if (recording && hydratedFor.current !== recording.id) {
       hydratedFor.current = recording.id
@@ -58,7 +59,9 @@ export default function AnalyzerPage() {
   if (recording === undefined) {
     return (
       <CenteredMessage>
-        <p className="text-sm text-[color:var(--color-text-muted)]">Loading…</p>
+        <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-[color:var(--color-text-muted)] sl-pulse">
+          Loading source · –:–
+        </p>
       </CenteredMessage>
     )
   }
@@ -66,32 +69,50 @@ export default function AnalyzerPage() {
   if (!recording) {
     return (
       <CenteredMessage>
-        <p className="text-sm">Recording not found.</p>
-        <Link to="/" className="mt-4 text-sm text-[color:var(--color-accent)] underline">Back to library</Link>
+        <p className="label-eyebrow text-[color:var(--color-text)]">Recording not found</p>
+        <Link to="/" className="mt-4 font-mono text-[11px] uppercase tracking-[0.18em] text-[color:var(--color-accent)]">
+          Back to library
+        </Link>
       </CenteredMessage>
     )
   }
 
+  const total = stepper.totalFrames
+  const currentFrame = stepper.frameIndex
+  const paddedFrame = String(currentFrame).padStart(String(Math.max(total - 1, 0)).length, '0')
+
   return (
     <div className="flex h-full flex-col bg-[color:var(--color-bg)]">
       <header
-        className="flex items-center justify-between gap-2 px-2 pb-1 pt-2"
+        className="flex items-center gap-3 px-3 pb-3 pt-2 hairline-b"
         style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top))' }}
       >
         <Link
           to="/"
           aria-label="Back"
-          className="flex h-10 w-10 items-center justify-center rounded-full text-[color:var(--color-text-muted)] active:bg-[color:var(--color-bg-elevated)]"
+          className="flex h-11 w-11 items-center justify-center rounded-full text-[color:var(--color-text-muted)] active:bg-[color:var(--color-bg-elevated)] active:text-[color:var(--color-text)]"
         >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-            <polyline points="15,6 9,12 15,18" />
-          </svg>
+          <IconBack size={20} />
         </Link>
-        <h1 className="min-w-0 flex-1 truncate text-center text-sm font-medium text-[color:var(--color-text)]">{recording.name}</h1>
-        <div className="h-10 w-10" />
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-[14px] font-medium leading-tight text-[color:var(--color-text)]">
+            {recording.name}
+          </h1>
+          <p className="mt-1 flex items-center gap-1.5 numeric text-[10px] uppercase tracking-[0.16em] text-[color:var(--color-text-muted)]">
+            <span>Frame {paddedFrame}<span className="opacity-50"> / {Math.max(total - 1, 0)}</span></span>
+            <span className="h-2.5 w-px bg-[color:var(--color-border)]" />
+            <span>{fps} fps</span>
+          </p>
+        </div>
+        <div
+          className="flex h-11 w-11 items-center justify-center font-mono text-[10px] uppercase tracking-[0.18em] text-[color:var(--color-text-muted)]"
+          aria-hidden="true"
+        >
+          SL
+        </div>
       </header>
 
-      <div className="flex flex-1 items-center justify-center overflow-hidden bg-black">
+      <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-black">
         {videoUrl ? (
           <div
             className="relative"
@@ -111,13 +132,16 @@ export default function AnalyzerPage() {
               className="absolute inset-0 h-full w-full"
             />
             <AnnotationOverlay annotations={annotations} onCommit={commitAnnotation} />
+            <Brackets active={annotations.length > 0} />
           </div>
         ) : (
-          <p className="text-sm text-[color:var(--color-text-muted)]">Loading video…</p>
+          <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-[color:var(--color-text-muted)] sl-pulse">
+            Loading source · –:–
+          </p>
         )}
       </div>
 
-      <div className="pb-[max(0.25rem,env(safe-area-inset-bottom))]">
+      <div className="pb-[max(0.25rem,env(safe-area-inset-bottom))] hairline-t">
         <ToolPalette
           onUndo={undo}
           onClear={clearAll}

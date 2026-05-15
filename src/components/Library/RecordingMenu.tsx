@@ -10,19 +10,19 @@ interface RecordingMenuProps {
 
 export default function RecordingMenu({ recording, onClose, onRename, onDelete }: RecordingMenuProps) {
   return (
-    <Sheet open={!!recording} onClose={onClose} title={recording?.name}>
+    <Sheet open={!!recording} onClose={onClose} kicker="Clip" title={recording?.name}>
       <div className="flex flex-col gap-2">
         <button
           type="button"
           onClick={onRename}
-          className="flex w-full items-center gap-3 rounded-xl bg-[color:var(--color-bg-input)] p-3 text-left text-sm font-medium active:opacity-80"
+          className="w-full border border-[color:var(--color-border)] px-4 py-3 text-left text-[14px] font-medium text-[color:var(--color-text)] transition-colors active:bg-[color:var(--color-bg-input)]"
         >
           Rename
         </button>
         <button
           type="button"
           onClick={onDelete}
-          className="flex w-full items-center gap-3 rounded-xl bg-[color:var(--color-bg-input)] p-3 text-left text-sm font-medium text-red-400 active:opacity-80"
+          className="w-full border border-[color:var(--color-danger)]/30 px-4 py-3 text-left text-[14px] font-medium text-[color:var(--color-danger)] transition-colors active:bg-[color:var(--color-danger)]/10"
         >
           Delete
         </button>

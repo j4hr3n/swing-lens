@@ -5,6 +5,8 @@ import { writeFile } from '../../lib/opfs'
 import { probeVideo } from '../../lib/videoMeta'
 import { db } from '../../lib/db'
 import { uid } from '../../lib/geometry'
+import Brackets from '../shared/Brackets'
+import { IconBack } from '../shared/Icons'
 import type { Recording } from '../../types'
 
 type Status = 'idle' | 'requesting' | 'preview' | 'recording' | 'saving' | 'error'
@@ -35,9 +37,9 @@ export default function CapturePage() {
   const [status, setStatus] = useState<Status>('idle')
   const [error, setError] = useState<string | undefined>()
   const [fps, setFps] = useState<number | undefined>()
+  const [dims, setDims] = useState<{ w: number; h: number } | undefined>()
   const [elapsed, setElapsed] = useState(0)
 
-  // Acquire camera on mount
   useEffect(() => {
     let cancelled = false
     async function start() {
@@ -59,6 +61,7 @@ export default function CapturePage() {
         streamRef.current = stream
         const settings = stream.getVideoTracks()[0]?.getSettings()
         if (settings?.frameRate) setFps(Math.round(settings.frameRate))
+        if (settings?.width && settings?.height) setDims({ w: settings.width, h: settings.height })
         if (videoRef.current) {
           videoRef.current.srcObject = stream
           await videoRef.current.play().catch(() => {})
@@ -87,7 +90,6 @@ export default function CapturePage() {
     }
   }, [])
 
-  // Elapsed timer while recording
   useEffect(() => {
     if (status !== 'recording') return
     const id = setInterval(() => {
@@ -162,32 +164,39 @@ export default function CapturePage() {
     }
   }
 
+  const elapsedFormatted = formatElapsed(elapsed)
+
   return (
-    <div className="flex h-full flex-col bg-black text-[color:var(--color-text)]">
+    <div className="no-grain flex h-full flex-col bg-black text-[color:var(--color-text)]">
       <header
-        className="flex items-center justify-between gap-2 px-2 pb-1 pt-2"
+        className="flex items-center justify-between gap-2 px-3 pb-2 pt-2"
         style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top))' }}
       >
         <Link
           to="/"
           aria-label="Back"
-          className="flex h-10 w-10 items-center justify-center rounded-full text-white/70 active:bg-white/10"
+          className="flex h-11 w-11 items-center justify-center rounded-full text-white/70 active:bg-white/10 active:text-white"
         >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-            <polyline points="15,6 9,12 15,18" />
-          </svg>
+          <IconBack size={20} />
         </Link>
-        <div className="flex flex-col items-center text-[11px] text-white/70">
+        <div className="flex items-center gap-2 numeric text-[10px] uppercase tracking-[0.2em] text-white/80">
           {status === 'recording' ? (
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-red-500" />
-              <span className="tabular-nums">{elapsed.toFixed(1)}s</span>
+            <>
+              <span className="flex items-center gap-1.5 text-[color:var(--color-danger)]">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-[color:var(--color-danger)] sl-pulse" />
+                Rec
+              </span>
+              <span className="h-3 w-px bg-white/30" />
+              <span className="text-white">{elapsedFormatted}</span>
+            </>
+          ) : (
+            <span className="text-white/55">
+              {dims ? `${dims.w} × ${dims.h}` : 'Lens'}
+              {fps ? <> <span className="mx-1 opacity-60">·</span> {fps} fps</> : null}
             </span>
-          ) : fps ? (
-            <span className="tabular-nums">{fps}fps preview</span>
-          ) : null}
+          )}
         </div>
-        <div className="h-10 w-10" />
+        <div className="h-11 w-11" />
       </header>
 
       <div className="relative flex flex-1 items-center justify-center overflow-hidden">
@@ -198,23 +207,29 @@ export default function CapturePage() {
           autoPlay
           className="max-h-full max-w-full"
         />
+        {status === 'preview' || status === 'recording' ? (
+          <Brackets active={status === 'recording'} />
+        ) : null}
         {status === 'requesting' ? (
-          <p className="absolute inset-0 flex items-center justify-center text-sm text-white/70">
+          <p className="absolute inset-0 flex items-center justify-center font-mono text-[11px] uppercase tracking-[0.22em] text-white/70 sl-pulse">
             Requesting camera…
           </p>
         ) : null}
         {status === 'error' ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center">
-            <p className="text-sm">{error}</p>
-            <Link to="/" className="mt-4 text-sm text-[color:var(--color-accent)] underline">
+            <p className="label-eyebrow text-white">Error</p>
+            <p className="mt-3 max-w-xs text-[13px] leading-relaxed text-white/80">{error}</p>
+            <Link to="/" className="mt-5 font-mono text-[11px] uppercase tracking-[0.2em] text-[color:var(--color-accent)]">
               Back to library
             </Link>
           </div>
         ) : null}
         {status === 'saving' ? (
-          <p className="absolute inset-0 flex items-center justify-center bg-black/60 text-sm text-white">
-            Saving…
-          </p>
+          <div className="absolute inset-0 flex items-center justify-center bg-black/70">
+            <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-white sl-pulse">
+              Saving clip…
+            </p>
+          </div>
         ) : null}
       </div>
 
@@ -227,18 +242,19 @@ export default function CapturePage() {
             type="button"
             aria-label="Start recording"
             onClick={startRecording}
-            className="flex h-20 w-20 items-center justify-center rounded-full border-4 border-white active:scale-95"
+            className="relative flex h-20 w-20 items-center justify-center rounded-full border-[3px] border-white/90 transition-transform active:scale-95"
+            style={{ boxShadow: '0 0 0 4px rgba(216, 255, 58, 0.0)' }}
           >
-            <span className="block h-14 w-14 rounded-full bg-red-500" />
+            <span className="block h-[58px] w-[58px] rounded-full bg-[color:var(--color-danger)]" />
           </button>
         ) : status === 'recording' ? (
           <button
             type="button"
             aria-label="Stop recording"
             onClick={stopRecording}
-            className="flex h-20 w-20 items-center justify-center rounded-full border-4 border-white active:scale-95"
+            className="flex h-20 w-20 items-center justify-center rounded-full border-[3px] border-white/90 transition-transform active:scale-95"
           >
-            <span className="block h-9 w-9 rounded-md bg-red-500" />
+            <span className="block h-9 w-9 rounded-[3px] bg-[color:var(--color-danger)]" />
           </button>
         ) : (
           <div className="h-20 w-20" />
@@ -246,4 +262,10 @@ export default function CapturePage() {
       </div>
     </div>
   )
+}
+
+function formatElapsed(sec: number): string {
+  const m = Math.floor(sec / 60)
+  const s = sec - m * 60
+  return `${String(m).padStart(2, '0')}:${s.toFixed(1).padStart(4, '0')}`
 }
