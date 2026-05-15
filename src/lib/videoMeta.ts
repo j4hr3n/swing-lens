@@ -1,3 +1,5 @@
+import { parseMp4Fps } from './mp4Fps'
+
 export interface ProbedMetadata {
   width: number
   height: number
@@ -13,16 +15,25 @@ export async function probeVideo(file: File): Promise<{ meta: ProbedMetadata; th
     video.muted = true
     video.playsInline = true
     video.src = url
-    await new Promise<void>((resolve, reject) => {
-      video.onloadedmetadata = () => resolve()
-      video.onerror = () => reject(new Error('Failed to load video metadata'))
-    })
+
+    // Run the container parse in parallel with the <video> metadata load —
+    // both touch the file independently, so we don't need to wait for one
+    // before starting the other. Container FPS is the only reliable signal
+    // for high-FPS sources (e.g. iPhone 240fps slo-mo) because rVFC-based
+    // measurement is capped at the display refresh.
+    const [containerFps] = await Promise.all([
+      parseMp4Fps(file),
+      new Promise<void>((resolve, reject) => {
+        video.onloadedmetadata = () => resolve()
+        video.onerror = () => reject(new Error('Failed to load video metadata'))
+      }),
+    ])
 
     const width = video.videoWidth
     const height = video.videoHeight
     const duration = video.duration
 
-    const fps = await measureFps(video)
+    const fps = containerFps && containerFps > 0 ? containerFps : await measureFps(video)
     const thumbnail = await extractThumbnail(video)
     return {
       meta: { width, height, duration, fps },
