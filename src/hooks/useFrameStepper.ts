@@ -25,14 +25,17 @@ export function useFrameStepper(
   useEffect(() => {
     const video = ref.current as RVFCVideo | null
     if (!video) return
+
+    const onSeeked = () => setFrameIndex(Math.round(video.currentTime * fps))
+    video.addEventListener('seeked', onSeeked)
+
     const supportsRVFC = typeof video.requestVideoFrameCallback === 'function'
     if (!supportsRVFC) {
       const onTimeUpdate = () => setFrameIndex(Math.round(video.currentTime * fps))
       video.addEventListener('timeupdate', onTimeUpdate)
-      video.addEventListener('seeked', onTimeUpdate)
       return () => {
         video.removeEventListener('timeupdate', onTimeUpdate)
-        video.removeEventListener('seeked', onTimeUpdate)
+        video.removeEventListener('seeked', onSeeked)
       }
     }
 
@@ -53,6 +56,7 @@ export function useFrameStepper(
       if (handle !== undefined && typeof video.cancelVideoFrameCallback === 'function') {
         video.cancelVideoFrameCallback(handle)
       }
+      video.removeEventListener('seeked', onSeeked)
     }
   }, [ref, fps])
 
@@ -61,6 +65,7 @@ export function useFrameStepper(
       const video = ref.current
       if (!video) return
       const clamped = Math.max(0, Math.min(totalFrames - 1, target))
+      setFrameIndex(clamped)
       const targetTime = (clamped + 0.5) / fps
       video.pause()
       video.currentTime = targetTime
