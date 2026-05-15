@@ -6,6 +6,7 @@ import RecordingRow from './RecordingRow'
 import ImportSheet from './ImportSheet'
 import RecordingMenu from './RecordingMenu'
 import RenameDialog from '../shared/RenameDialog'
+import InstallHint from '../shared/InstallHint'
 import type { Recording } from '../../types'
 
 export default function LibraryPage() {
@@ -34,7 +35,9 @@ export default function LibraryPage() {
         </Link>
       </header>
 
-      <main className="flex-1 overflow-y-auto px-4 pb-32">
+      <InstallHint />
+
+      <main className="flex-1 overflow-y-auto px-4 pb-32 pt-2">
         {recordings === undefined ? (
           <p className="mt-12 text-center text-sm text-[color:var(--color-text-muted)]">Loading…</p>
         ) : recordings.length === 0 ? (
