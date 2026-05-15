@@ -84,12 +84,10 @@ export default function AnalyzerPage() {
   const total = stepper.totalFrames
   const currentFrame = stepper.frameIndex
   const paddedFrame = String(currentFrame).padStart(String(Math.max(total - 1, 0)).length, '0')
-  const canUndo = annotations.length > 0
-  const canClear = annotations.length > 0
+  const hasAnnotations = annotations.length > 0
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-black">
-      {/* Video + annotation layer */}
       <div className="absolute inset-0 flex items-center justify-center">
         {videoUrl ? (
           <div
@@ -122,7 +120,6 @@ export default function AnalyzerPage() {
         )}
       </div>
 
-      {/* Top overlay: header */}
       <div
         className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-black/85 via-black/45 to-transparent"
       >
@@ -153,7 +150,7 @@ export default function AnalyzerPage() {
           <button
             type="button"
             aria-label="Undo"
-            disabled={!canUndo}
+            disabled={!hasAnnotations}
             onClick={undo}
             className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-md text-[color:var(--color-text-muted)] active:bg-white/10 active:text-[color:var(--color-text)] disabled:opacity-25"
           >
@@ -162,7 +159,7 @@ export default function AnalyzerPage() {
           <button
             type="button"
             aria-label="Clear all"
-            disabled={!canClear}
+            disabled={!hasAnnotations}
             onClick={clearAll}
             className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-md text-[color:var(--color-text-muted)] active:bg-white/10 active:text-[color:var(--color-danger)] disabled:opacity-25"
           >
@@ -171,7 +168,6 @@ export default function AnalyzerPage() {
         </div>
       </div>
 
-      {/* Bottom overlay: scrub + tool palette + playback */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/85 via-black/50 to-transparent">
         <div
           className="pt-6"

@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAppStore } from '../../store/app'
 import { COLOR_VALUES } from '../../lib/colors'
-import { uid, angleDegrees, distance } from '../../lib/geometry'
+import { angleDegrees, clamp01, distance, normalize, uid } from '../../lib/geometry'
 import type { Annotation, AnnotationColor, Pt } from '../../types'
 
 interface AnnotationOverlayProps {
@@ -30,6 +30,7 @@ export default function AnnotationOverlay({ annotations, onCommit, onUpdate }: A
   const [anglePartial, setAnglePartial] = useState<AnglePartial>(undefined)
   const [selectedId, setSelectedId] = useState<string | undefined>()
   const [editing, setEditing] = useState<LineEditing>()
+  const dragCleanupRef = useRef<(() => void) | undefined>(undefined)
 
   const ptFromClient = (clientX: number, clientY: number): Pt => {
     const svg = svgRef.current!
@@ -41,18 +42,20 @@ export default function AnnotationOverlay({ annotations, onCommit, onUpdate }: A
 
   const ptFrom = (e: React.PointerEvent): Pt => ptFromClient(e.clientX, e.clientY)
 
-  // Reset partial state when switching tools
   useEffect(() => {
     if (tool !== 'angle') setAnglePartial(undefined)
     setSelectedId(undefined)
   }, [tool])
 
-  // Drop selection if the annotation goes away
   useEffect(() => {
     if (selectedId && !annotations.some((a) => a.id === selectedId)) {
       setSelectedId(undefined)
     }
   }, [annotations, selectedId])
+
+  useEffect(() => () => {
+    dragCleanupRef.current?.()
+  }, [])
 
   const onPointerDown = (e: React.PointerEvent) => {
     e.currentTarget.setPointerCapture(e.pointerId)
@@ -155,28 +158,36 @@ export default function AnnotationOverlay({ annotations, onCommit, onUpdate }: A
         return { ...cur, draft: { ...cur.draft, [endpoint]: p } }
       })
     }
-    const onUp = (ev: PointerEvent) => {
+    const cleanup = () => {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
       window.removeEventListener('pointercancel', onUp)
+      dragCleanupRef.current = undefined
+    }
+    const onUp = (ev: PointerEvent) => {
+      cleanup()
       const p = ptFromClient(ev.clientX, ev.clientY)
       onUpdate(line.id, { [endpoint]: p })
       setEditing(undefined)
     }
+    dragCleanupRef.current = cleanup
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
     window.addEventListener('pointercancel', onUp)
   }
 
-  const selectedLine = (() => {
+  const selectedLine = useMemo(() => {
     if (!selectedId) return undefined
     const a = annotations.find((x) => x.id === selectedId)
-    if (!a || a.type !== 'line') return undefined
-    return a
-  })()
+    return a && a.type === 'line' ? a : undefined
+  }, [annotations, selectedId])
 
-  const renderLineEndpoints =
-    selectedLine && editing && editing.id === selectedLine.id ? editing.draft : selectedLine
+  const handleEndpoints =
+    selectedLine && editing?.id === selectedLine.id
+      ? editing.draft
+      : selectedLine
+        ? { a: selectedLine.a, b: selectedLine.b }
+        : undefined
 
   return (
     <>
@@ -217,17 +228,16 @@ export default function AnnotationOverlay({ annotations, onCommit, onUpdate }: A
         {anglePartial ? <AnglePartialMarker partial={anglePartial} /> : null}
       </svg>
 
-      {/* Handles layer (DOM, percent-positioned so size doesn't stretch with aspect) */}
-      {selectedLine && renderLineEndpoints ? (
+      {selectedLine && handleEndpoints ? (
         <div className="pointer-events-none absolute inset-0">
           <Handle
             color={COLOR_VALUES[selectedLine.color]}
-            position={'a' in renderLineEndpoints ? renderLineEndpoints.a : selectedLine.a}
+            position={handleEndpoints.a}
             onPointerDown={beginEditHandle(selectedLine, 'a')}
           />
           <Handle
             color={COLOR_VALUES[selectedLine.color]}
-            position={'b' in renderLineEndpoints ? renderLineEndpoints.b : selectedLine.b}
+            position={handleEndpoints.b}
             onPointerDown={beginEditHandle(selectedLine, 'b')}
           />
         </div>
@@ -377,14 +387,3 @@ function AngleShape({ vertex, a, b, stroke }: { vertex: Pt; a: Pt; b: Pt; stroke
   )
 }
 
-function clamp01(v: number): number {
-  if (v < 0) return 0
-  if (v > 1) return 1
-  return v
-}
-
-function normalize(v: Pt): Pt {
-  const len = Math.hypot(v[0], v[1])
-  if (len === 0) return [0, 0]
-  return [v[0] / len, v[1] / len]
-}

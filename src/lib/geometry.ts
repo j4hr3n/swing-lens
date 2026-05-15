@@ -18,3 +18,15 @@ export function angleDegrees(vertex: Pt, a: Pt, b: Pt): number {
 export function uid(): string {
   return crypto.randomUUID()
 }
+
+export function clamp01(v: number): number {
+  if (v < 0) return 0
+  if (v > 1) return 1
+  return v
+}
+
+export function normalize(v: Pt): Pt {
+  const len = Math.hypot(v[0], v[1])
+  if (len === 0) return [0, 0]
+  return [v[0] / len, v[1] / len]
+}
