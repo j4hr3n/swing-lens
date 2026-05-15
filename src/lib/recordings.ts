@@ -19,14 +19,14 @@ function extOf(file: File): string {
 }
 
 export async function importRecording(file: File): Promise<Recording> {
-  const { meta, thumbnail } = await probeVideo(file)
   const id = uid()
   const ext = extOf(file)
   const videoFileName = `${id}.${ext}`
   const thumbnailFileName = `${id}.jpg`
 
-  await writeFile(videoFileName, file)
-  await writeFile(thumbnailFileName, thumbnail)
+  const videoWritePromise = writeFile(videoFileName, file)
+  const { meta, thumbnail } = await probeVideo(file)
+  await Promise.all([videoWritePromise, writeFile(thumbnailFileName, thumbnail)])
 
   const now = new Date()
   const recording: Recording = {

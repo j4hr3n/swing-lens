@@ -45,7 +45,7 @@ async function measureFps(video: HTMLVideoElement): Promise<number> {
   await new Promise<void>((resolve) => {
     const onFrame = (_now: number, meta: RVFCMetadata) => {
       samples.push(meta.mediaTime)
-      if (samples.length >= 10) resolve()
+      if (samples.length >= 5) resolve()
       else rvfc(onFrame)
     }
     rvfc(onFrame)
@@ -64,7 +64,7 @@ async function measureFps(video: HTMLVideoElement): Promise<number> {
 }
 
 async function extractThumbnail(video: HTMLVideoElement): Promise<Blob> {
-  const seekTo = Math.min(0.5, Math.max(0, video.duration - 0.1))
+  const seekTo = Math.min(0.1, Math.max(0, video.duration / 2))
   await seek(video, seekTo)
   const canvas = document.createElement('canvas')
   canvas.width = video.videoWidth
