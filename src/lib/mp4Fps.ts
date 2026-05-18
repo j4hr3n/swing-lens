@@ -156,7 +156,7 @@ function readType(view: DataView, offset: number): string {
 function readTimescale(view: DataView, start: number): number | undefined {
   const version = view.getUint8(start)
   // skip version(1) + flags(3) + creation_time + modification_time
-  const skip = version === 1 ? 8 + 8 + 8 : 8 + 4 + 4
+  const skip = version === 1 ? 4 + 8 + 8 : 4 + 4 + 4
   const tsOffset = start + skip
   if (tsOffset + 4 > view.byteLength) return undefined
   return view.getUint32(tsOffset)

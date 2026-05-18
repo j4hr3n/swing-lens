@@ -134,7 +134,7 @@ export default function AnalyzerPage() {
             <h1 className="truncate text-[15px] font-semibold leading-tight text-white">
               {recording.name}
             </h1>
-            <p className="mt-1 flex items-center gap-1.5 numeric text-[11px] uppercase tracking-[0.14em] text-white/85">
+            <p className="mt-1 flex items-center gap-1.5 numeric whitespace-nowrap text-[11px] uppercase tracking-[0.14em] text-white/85">
               <span>
                 Frame {paddedFrame}
                 <span className="text-white/55"> / {Math.max(total - 1, 0)}</span>
