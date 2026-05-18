@@ -37,22 +37,13 @@ export default function ImportSheet({ open, onClose }: ImportSheetProps) {
     <Sheet open={open} onClose={busy ? () => {} : onClose} kicker="New" title="Add a swing">
       <div className="flex flex-col gap-2">
         {ios ? (
-          <>
-            <ChoiceButton
-              disabled={busy}
-              onClick={() => fileInputRef.current?.click()}
-              icon={<IconCamera size={20} />}
-              label="Record slow-mo"
-              hint="Open Camera, switch to Slo-Mo, record, then pick the clip here"
-            />
-            <ChoiceButton
-              disabled={busy}
-              onClick={() => fileInputRef.current?.click()}
-              icon={<IconFile size={20} />}
-              label="Choose existing clip"
-              hint="Pick a swing already in your camera roll"
-            />
-          </>
+          <ChoiceButton
+            disabled={busy}
+            onClick={() => fileInputRef.current?.click()}
+            icon={<IconCamera size={20} />}
+            label="Record slow-mo or pick a clip"
+            hint="Open Camera in Slo-Mo (240 fps) or choose an existing swing from your camera roll"
+          />
         ) : (
           <>
             <ChoiceButton

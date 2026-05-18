@@ -1,15 +1,13 @@
 import { useEffect, useState } from 'react'
+import { isIOS } from '../../lib/platform'
 import { IconClose, IconShare } from './Icons'
 
 const STORAGE_KEY = 'swing-lens:install-hint-dismissed'
 
 function isIOSSafari(): boolean {
-  if (typeof navigator === 'undefined') return false
+  if (!isIOS()) return false
   const ua = navigator.userAgent
-  const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-  if (!isIOS) return false
-  const isSafari = /^((?!chrome|android|crios|fxios|edgios).)*safari/i.test(ua)
-  return isSafari
+  return /^((?!chrome|android|crios|fxios|edgios).)*safari/i.test(ua)
 }
 
 function isStandalone(): boolean {
