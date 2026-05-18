@@ -53,9 +53,7 @@ export default function AnalyzerPage() {
 
   const commitAnnotation = (a: Annotation) => persist([...annotations, a])
   const updateAnnotation = (annotationId: string, partial: Partial<Annotation>) => {
-    persist(
-      annotations.map((a) => (a.id === annotationId ? ({ ...a, ...partial } as Annotation) : a)),
-    )
+    persist(annotations.map((a) => (a.id === annotationId ? { ...a, ...partial } : a)))
   }
   const undo = () => persist(annotations.slice(0, -1))
   const clearAll = () => persist([])
@@ -120,9 +118,7 @@ export default function AnalyzerPage() {
         )}
       </div>
 
-      <div
-        className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-black/85 via-black/45 to-transparent"
-      >
+      <div className="video-ink pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-black/90 via-black/55 to-transparent">
         <div
           className="flex items-center gap-2 px-2 pb-6"
           style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top))' }}
@@ -130,20 +126,20 @@ export default function AnalyzerPage() {
           <Link
             to="/"
             aria-label="Back"
-            className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full text-[color:var(--color-text)] active:bg-white/10"
+            className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full text-white video-ink-icon active:bg-white/10"
           >
             <IconBack size={20} />
           </Link>
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-[14px] font-medium leading-tight text-[color:var(--color-text)]">
+            <h1 className="truncate text-[15px] font-semibold leading-tight text-white">
               {recording.name}
             </h1>
-            <p className="mt-0.5 flex items-center gap-1.5 numeric text-[10px] uppercase tracking-[0.16em] text-[color:var(--color-text-muted)]">
+            <p className="mt-1 flex items-center gap-1.5 numeric text-[11px] uppercase tracking-[0.14em] text-white/85">
               <span>
                 Frame {paddedFrame}
-                <span className="opacity-50"> / {Math.max(total - 1, 0)}</span>
+                <span className="text-white/55"> / {Math.max(total - 1, 0)}</span>
               </span>
-              <span className="h-2.5 w-px bg-white/20" />
+              <span className="h-2.5 w-px bg-white/40" />
               <span>{fps} fps</span>
             </p>
           </div>
@@ -152,7 +148,7 @@ export default function AnalyzerPage() {
             aria-label="Undo"
             disabled={!hasAnnotations}
             onClick={undo}
-            className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-md text-[color:var(--color-text-muted)] active:bg-white/10 active:text-[color:var(--color-text)] disabled:opacity-25"
+            className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-md text-white video-ink-icon active:bg-white/10 disabled:opacity-30"
           >
             <IconUndo size={18} />
           </button>
@@ -161,14 +157,14 @@ export default function AnalyzerPage() {
             aria-label="Clear all"
             disabled={!hasAnnotations}
             onClick={clearAll}
-            className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-md text-[color:var(--color-text-muted)] active:bg-white/10 active:text-[color:var(--color-danger)] disabled:opacity-25"
+            className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-md text-white video-ink-icon active:bg-white/10 active:text-[color:var(--color-danger)] disabled:opacity-30"
           >
             <IconTrash size={18} />
           </button>
         </div>
       </div>
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/85 via-black/50 to-transparent">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/90 via-black/55 to-transparent">
         <div
           className="pt-6"
           style={{ paddingBottom: 'max(0.25rem, env(safe-area-inset-bottom))' }}
