@@ -34,16 +34,21 @@ export default function ImportSheet({ open, onClose }: ImportSheetProps) {
   const ios = isIOS()
 
   return (
-    <Sheet open={open} onClose={busy ? () => {} : onClose} kicker="New" title="Add a swing">
+    <Sheet open={open} onClose={busy ? () => {} : onClose} title="Add a swing">
       <div className="flex flex-col gap-2">
         {ios ? (
-          <ChoiceButton
-            disabled={busy}
-            onClick={() => fileInputRef.current?.click()}
-            icon={<IconCamera size={20} />}
-            label="Record slow-mo or pick a clip"
-            hint="Open Camera in Slo-Mo (240 fps) or choose an existing swing from your camera roll"
-          />
+          <>
+            <ChoiceButton
+              disabled={busy}
+              onClick={() => fileInputRef.current?.click()}
+              icon={<IconFile size={20} />}
+              label="Pick a swing"
+              hint="Choose a clip from your camera roll"
+            />
+            <p className="mt-1 px-1 text-[11px] leading-relaxed text-[color:var(--color-text-muted)]">
+              For 120 / 240 fps: open the iPhone Camera, switch to <span className="text-[color:var(--color-text)]">Slo-Mo</span>, record, then come back and pick the clip. Safari can't choose the camera's frame rate, so the in-app "Take Video" option records at standard speed only.
+            </p>
+          </>
         ) : (
           <>
             <ChoiceButton
