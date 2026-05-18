@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Sheet from '../shared/Sheet'
 import { importRecording } from '../../lib/recordings'
+import { isIOS } from '../../lib/platform'
 import { IconArrowRight, IconCamera, IconFile } from '../shared/Icons'
 
 interface ImportSheetProps {
@@ -30,26 +31,49 @@ export default function ImportSheet({ open, onClose }: ImportSheetProps) {
     }
   }
 
+  const ios = isIOS()
+
   return (
     <Sheet open={open} onClose={busy ? () => {} : onClose} kicker="New" title="Add a swing">
       <div className="flex flex-col gap-2">
-        <ChoiceButton
-          disabled={busy}
-          onClick={() => fileInputRef.current?.click()}
-          icon={<IconFile size={20} />}
-          label="Import from camera roll"
-          hint="From your camera roll. iOS may re-render slo-mo at 30 fps."
-        />
-        <ChoiceButton
-          disabled={busy}
-          onClick={() => {
-            onClose()
-            navigate('/capture')
-          }}
-          icon={<IconCamera size={20} />}
-          label="Record now"
-          hint="Direct capture — up to ~60 fps on iPhone Safari, higher on Android and desktop."
-        />
+        {ios ? (
+          <>
+            <ChoiceButton
+              disabled={busy}
+              onClick={() => fileInputRef.current?.click()}
+              icon={<IconCamera size={20} />}
+              label="Record slow-mo"
+              hint="Open Camera, switch to Slo-Mo, record, then pick the clip here"
+            />
+            <ChoiceButton
+              disabled={busy}
+              onClick={() => fileInputRef.current?.click()}
+              icon={<IconFile size={20} />}
+              label="Choose existing clip"
+              hint="Pick a swing already in your camera roll"
+            />
+          </>
+        ) : (
+          <>
+            <ChoiceButton
+              disabled={busy}
+              onClick={() => fileInputRef.current?.click()}
+              icon={<IconFile size={20} />}
+              label="Import from camera roll"
+              hint="From your camera roll. iPhone slo-mo clips keep their original fps."
+            />
+            <ChoiceButton
+              disabled={busy}
+              onClick={() => {
+                onClose()
+                navigate('/capture')
+              }}
+              icon={<IconCamera size={20} />}
+              label="Record now"
+              hint="Direct capture — up to 120 fps on Android, ~60 fps on desktop."
+            />
+          </>
+        )}
       </div>
       {busy ? (
         <p className="mt-4 text-center font-mono text-[10px] uppercase tracking-[0.22em] text-[color:var(--color-text-muted)] sl-pulse">

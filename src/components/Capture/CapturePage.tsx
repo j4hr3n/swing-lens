@@ -51,6 +51,7 @@ export default function CapturePage() {
             frameRate: { ideal: 240, min: 30 },
             width: { ideal: 1920 },
             height: { ideal: 1080 },
+            advanced: [{ frameRate: 240 }, { frameRate: 120 }, { frameRate: 60 }],
           },
           audio: false,
         })
@@ -202,6 +203,13 @@ export default function CapturePage() {
         />
         {status === 'preview' || status === 'recording' ? (
           <Brackets active={status === 'recording'} />
+        ) : null}
+        {status === 'preview' && fps !== undefined && fps < 60 ? (
+          <div className="pointer-events-none absolute inset-x-3 top-3 flex justify-center">
+            <p className="max-w-xs rounded-sm border border-white/15 bg-black/60 px-3 py-2 text-center text-[11px] leading-snug text-white/85 backdrop-blur-sm">
+              This device negotiated {fps} fps. For slow-mo, record in the system Camera and import.
+            </p>
+          </div>
         ) : null}
         {status === 'requesting' ? (
           <p className="absolute inset-0 flex items-center justify-center font-mono text-[11px] uppercase tracking-[0.22em] text-white/70 sl-pulse">
