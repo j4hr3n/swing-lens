@@ -39,6 +39,11 @@ export async function probeFast(file: File): Promise<FastMeta> {
   }
 }
 
+// Seek target large enough that any real media reports its true duration via
+// `durationchange` (Safari quirk). The element clamps `currentTime` back into
+// the valid range — we discard the side effect by resetting to 0.
+const SAFARI_DURATION_PROBE_TIME = 1e101
+
 async function resolveInfiniteDuration(video: HTMLVideoElement): Promise<number> {
   return new Promise((resolve) => {
     const cleanup = () => {
@@ -64,7 +69,7 @@ async function resolveInfiniteDuration(video: HTMLVideoElement): Promise<number>
     video.addEventListener('durationchange', onDurationChange)
     video.addEventListener('timeupdate', onTimeUpdate)
     try {
-      video.currentTime = 1e101
+      video.currentTime = SAFARI_DURATION_PROBE_TIME
     } catch {
       cleanup()
       resolve(0)

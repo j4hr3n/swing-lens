@@ -73,14 +73,17 @@ async function finalizeImport(
   file: File,
   videoFileName: string,
 ): Promise<void> {
-  const [_, fps] = await Promise.all([
-    writeFile(videoFileName, file),
-    detectContainerFps(file).catch(() => undefined),
-  ])
-  const patch: Partial<Recording> = { pending: false }
-  if (fps && fps > 0) patch.fps = fps
-  await db.recordings.update(id, patch)
-  pendingFileById.delete(id)
+  try {
+    const [_, fps] = await Promise.all([
+      writeFile(videoFileName, file),
+      detectContainerFps(file).catch(() => undefined),
+    ])
+    const patch: Partial<Recording> = { pending: false }
+    if (fps && fps > 0) patch.fps = fps
+    await db.recordings.update(id, patch)
+  } finally {
+    pendingFileById.delete(id)
+  }
 }
 
 /** Persists a thumbnail captured from the analyzer's first decoded frame. */

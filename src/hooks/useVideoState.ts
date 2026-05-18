@@ -26,7 +26,9 @@ export function useVideoState(ref: RefObject<HTMLVideoElement | null>): VideoSta
       update({ duration: d, currentTime: video.currentTime, ready: true })
     }
     const onDurationChange = () => {
-      if (isFinite(video.duration)) update({ duration: video.duration })
+      const d = video.duration
+      if (!isFinite(d)) return
+      setState((prev) => (prev.duration === d ? prev : { ...prev, duration: d }))
     }
     const onTimeUpdate = () => update({ currentTime: video.currentTime })
     const onPlay = () => update({ playing: true })
