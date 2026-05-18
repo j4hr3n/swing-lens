@@ -3,10 +3,12 @@ import LibraryPage from './components/Library/LibraryPage'
 import AnalyzerPage from './components/Analyzer/AnalyzerPage'
 import CapturePage from './components/Capture/CapturePage'
 import SettingsPage from './components/Settings/SettingsPage'
+import UpdatePrompt from './components/shared/UpdatePrompt'
 
 export default function App() {
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+      <UpdatePrompt />
       <Routes>
         <Route path="/" element={<LibraryPage />} />
         <Route path="/analyzer/:id" element={<AnalyzerPage />} />
