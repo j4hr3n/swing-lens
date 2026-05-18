@@ -1,10 +1,26 @@
 import { useEffect, useState } from 'react'
 import { readFileURL } from '../lib/opfs'
 
-export function useObjectUrl(fileName: string | undefined): string | undefined {
+/**
+ * Returns an object URL for an OPFS file. If `pendingFile` is provided, it
+ * takes precedence — used to display a freshly-imported video before the OPFS
+ * write has committed.
+ */
+export function useObjectUrl(
+  fileName: string | undefined,
+  pendingFile?: File | undefined,
+): string | undefined {
   const [url, setUrl] = useState<string | undefined>()
 
   useEffect(() => {
+    if (pendingFile) {
+      const u = URL.createObjectURL(pendingFile)
+      setUrl(u)
+      return () => {
+        URL.revokeObjectURL(u)
+        setUrl(undefined)
+      }
+    }
     if (!fileName) {
       setUrl(undefined)
       return
@@ -26,7 +42,7 @@ export function useObjectUrl(fileName: string | undefined): string | undefined {
       if (createdUrl) URL.revokeObjectURL(createdUrl)
       setUrl(undefined)
     }
-  }, [fileName])
+  }, [fileName, pendingFile])
 
   return url
 }

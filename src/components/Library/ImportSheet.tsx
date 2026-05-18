@@ -19,7 +19,7 @@ export default function ImportSheet({ open, onClose }: ImportSheetProps) {
     setBusy(true)
     setError(undefined)
     try {
-      const recording = await importRecording(file)
+      const { recording } = await importRecording(file)
       onClose()
       navigate(`/analyzer/${recording.id}`)
     } catch (e) {
@@ -38,7 +38,7 @@ export default function ImportSheet({ open, onClose }: ImportSheetProps) {
           onClick={() => fileInputRef.current?.click()}
           icon={<IconFile size={20} />}
           label="Import from camera roll"
-          hint="Best for 240 fps slo-mo — record with iPhone Camera, import here"
+          hint="From your camera roll. iOS may re-render slo-mo at 30 fps."
         />
         <ChoiceButton
           disabled={busy}
@@ -48,12 +48,12 @@ export default function ImportSheet({ open, onClose }: ImportSheetProps) {
           }}
           icon={<IconCamera size={20} />}
           label="Record now"
-          hint="In-app capture — 30 to 60 fps depending on device"
+          hint="Direct capture — up to ~60 fps on iPhone Safari, higher on Android and desktop."
         />
       </div>
       {busy ? (
         <p className="mt-4 text-center font-mono text-[10px] uppercase tracking-[0.22em] text-[color:var(--color-text-muted)] sl-pulse">
-          Importing source…
+          Reading source…
         </p>
       ) : null}
       {error ? (

@@ -1,13 +1,19 @@
 import { parseMp4Fps } from './mp4Fps'
 
-export interface ProbedMetadata {
+export interface FastMeta {
   width: number
   height: number
   duration: number
-  fps: number
 }
 
-export async function probeVideo(file: File): Promise<{ meta: ProbedMetadata; thumbnail: Blob }> {
+/**
+ * Metadata-only probe: width, height, duration. No seek, no thumbnail, no
+ * container parse. Optimized for "navigate to the analyzer instantly" — runs
+ * in ~tens of ms for most files. iPhone .mov files report `duration === Infinity`
+ * after loadedmetadata; we apply the well-known Safari workaround (seek past
+ * end → durationchange) to recover a real value.
+ */
+export async function probeFast(file: File): Promise<FastMeta> {
   const url = URL.createObjectURL(file)
   try {
     const video = document.createElement('video')
@@ -16,87 +22,76 @@ export async function probeVideo(file: File): Promise<{ meta: ProbedMetadata; th
     video.playsInline = true
     video.src = url
 
-    // Run the container parse in parallel with the <video> metadata load —
-    // both touch the file independently, so we don't need to wait for one
-    // before starting the other. Container FPS is the only reliable signal
-    // for high-FPS sources (e.g. iPhone 240fps slo-mo) because rVFC-based
-    // measurement is capped at the display refresh.
-    const [containerFps] = await Promise.all([
-      parseMp4Fps(file),
-      new Promise<void>((resolve, reject) => {
-        video.onloadedmetadata = () => resolve()
-        video.onerror = () => reject(new Error('Failed to load video metadata'))
-      }),
-    ])
+    await new Promise<void>((resolve, reject) => {
+      video.onloadedmetadata = () => resolve()
+      video.onerror = () => reject(new Error('Failed to load video metadata'))
+    })
 
     const width = video.videoWidth
     const height = video.videoHeight
-    const duration = video.duration
-
-    const fps = containerFps && containerFps > 0 ? containerFps : await measureFps(video)
-    const thumbnail = await extractThumbnail(video)
-    return {
-      meta: { width, height, duration, fps },
-      thumbnail,
+    let duration = video.duration
+    if (!isFinite(duration) || isNaN(duration)) {
+      duration = await resolveInfiniteDuration(video)
     }
+    return { width, height, duration }
   } finally {
     URL.revokeObjectURL(url)
   }
 }
 
-async function measureFps(video: HTMLVideoElement): Promise<number> {
-  const supportsRVFC = typeof (video as HTMLVideoElement & { requestVideoFrameCallback?: unknown }).requestVideoFrameCallback === 'function'
-  if (!supportsRVFC) return 30
-  type RVFCMetadata = { mediaTime: number }
-  const rvfc = (video as HTMLVideoElement & { requestVideoFrameCallback: (cb: (now: number, meta: RVFCMetadata) => void) => number }).requestVideoFrameCallback.bind(video)
-
-  await video.play().catch(() => {})
-
-  const samples: number[] = []
-  await new Promise<void>((resolve) => {
-    const onFrame = (_now: number, meta: RVFCMetadata) => {
-      samples.push(meta.mediaTime)
-      if (samples.length >= 5) resolve()
-      else rvfc(onFrame)
+async function resolveInfiniteDuration(video: HTMLVideoElement): Promise<number> {
+  return new Promise((resolve) => {
+    const cleanup = () => {
+      video.removeEventListener('durationchange', onDurationChange)
+      video.removeEventListener('timeupdate', onTimeUpdate)
     }
-    rvfc(onFrame)
+    const finish = () => {
+      const d = video.duration
+      cleanup()
+      try {
+        video.currentTime = 0
+      } catch {
+        // ignore
+      }
+      resolve(isFinite(d) ? d : 0)
+    }
+    const onDurationChange = () => {
+      if (isFinite(video.duration)) finish()
+    }
+    const onTimeUpdate = () => {
+      if (isFinite(video.duration)) finish()
+    }
+    video.addEventListener('durationchange', onDurationChange)
+    video.addEventListener('timeupdate', onTimeUpdate)
+    try {
+      video.currentTime = 1e101
+    } catch {
+      cleanup()
+      resolve(0)
+    }
   })
-  video.pause()
-
-  if (samples.length < 2) return 30
-  const deltas: number[] = []
-  for (let i = 1; i < samples.length; i++) {
-    deltas.push(samples[i] - samples[i - 1])
-  }
-  deltas.sort((a, b) => a - b)
-  const median = deltas[Math.floor(deltas.length / 2)]
-  if (!median || median <= 0) return 30
-  return Math.round(1 / median)
 }
 
-async function extractThumbnail(video: HTMLVideoElement): Promise<Blob> {
-  const seekTo = Math.min(0.1, Math.max(0, video.duration / 2))
-  await seek(video, seekTo)
+export async function detectContainerFps(file: File): Promise<number | undefined> {
+  return parseMp4Fps(file)
+}
+
+/** Captures the currently-displayed frame of `video` as a JPEG blob. */
+export async function captureFrameThumbnail(video: HTMLVideoElement): Promise<Blob> {
   const canvas = document.createElement('canvas')
   canvas.width = video.videoWidth
   canvas.height = video.videoHeight
-  const ctx = canvas.getContext('2d')!
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Canvas 2D context unavailable')
   ctx.drawImage(video, 0, 0)
   return new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (blob) resolve(blob)
-      else reject(new Error('Failed to extract thumbnail'))
-    }, 'image/jpeg', 0.8)
-  })
-}
-
-function seek(video: HTMLVideoElement, time: number): Promise<void> {
-  return new Promise((resolve) => {
-    const onSeeked = () => {
-      video.removeEventListener('seeked', onSeeked)
-      resolve()
-    }
-    video.addEventListener('seeked', onSeeked)
-    video.currentTime = time
+    canvas.toBlob(
+      (blob) => {
+        if (blob) resolve(blob)
+        else reject(new Error('Failed to capture thumbnail'))
+      },
+      'image/jpeg',
+      0.8,
+    )
   })
 }
