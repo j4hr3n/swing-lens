@@ -31,8 +31,8 @@ export function IconPlus(props: IconProps) {
 export function IconSettings(props: IconProps) {
   return (
     <Base {...props}>
-      <circle cx="12" cy="12" r="2.5" />
-      <path d="M12 3v2.4M12 18.6V21M3 12h2.4M18.6 12H21M5.6 5.6l1.7 1.7M16.7 16.7l1.7 1.7M5.6 18.4l1.7-1.7M16.7 7.3l1.7-1.7" />
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.5a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.73v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+      <circle cx="12" cy="12" r="3" />
     </Base>
   )
 }
@@ -60,41 +60,6 @@ export function IconDotsVertical(props: IconProps) {
       <circle cx="12" cy="6" r="0.75" fill="currentColor" />
       <circle cx="12" cy="12" r="0.75" fill="currentColor" />
       <circle cx="12" cy="18" r="0.75" fill="currentColor" />
-    </Base>
-  )
-}
-
-export function IconLine(props: IconProps) {
-  return (
-    <Base {...props}>
-      <line x1="5" y1="19" x2="19" y2="5" />
-      <circle cx="5" cy="19" r="1.25" fill="currentColor" />
-      <circle cx="19" cy="5" r="1.25" fill="currentColor" />
-    </Base>
-  )
-}
-
-export function IconCircle(props: IconProps) {
-  return (
-    <Base {...props}>
-      <circle cx="12" cy="12" r="7" />
-    </Base>
-  )
-}
-
-export function IconPen(props: IconProps) {
-  return (
-    <Base {...props}>
-      <path d="M5 19c2-7 7-3 9-9s-2-5 5-7" />
-    </Base>
-  )
-}
-
-export function IconAngle(props: IconProps) {
-  return (
-    <Base {...props}>
-      <polyline points="4,20 4,4 20,20" />
-      <path d="M9.5 20a6 6 0 0 0 -5.5 -5.5" />
     </Base>
   )
 }
