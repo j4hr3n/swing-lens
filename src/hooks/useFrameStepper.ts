@@ -19,15 +19,28 @@ export function useFrameStepper(
   duration: number,
 ): FrameStepperApi {
   const [frameIndex, setFrameIndex] = useState(0)
-  const totalFrames = Math.max(0, Math.round(duration * fps))
+  const totalFrames = Math.max(0, Math.round((isFinite(duration) ? duration : 0) * fps))
   const lastMediaTime = useRef(0)
+  const pendingTarget = useRef<number | undefined>(undefined)
 
   useEffect(() => {
     const video = ref.current as RVFCVideo | null
     if (!video) return
 
     const onSeeked = () => setFrameIndex(Math.round(video.currentTime * fps))
+    const onLoadedMetadata = () => {
+      if (pendingTarget.current !== undefined) {
+        const target = pendingTarget.current
+        pendingTarget.current = undefined
+        try {
+          video.currentTime = target
+        } catch {
+          // ignore — duration may still be unsettled
+        }
+      }
+    }
     video.addEventListener('seeked', onSeeked)
+    video.addEventListener('loadedmetadata', onLoadedMetadata)
 
     const supportsRVFC = typeof video.requestVideoFrameCallback === 'function'
     if (!supportsRVFC) {
@@ -36,6 +49,7 @@ export function useFrameStepper(
       return () => {
         video.removeEventListener('timeupdate', onTimeUpdate)
         video.removeEventListener('seeked', onSeeked)
+        video.removeEventListener('loadedmetadata', onLoadedMetadata)
       }
     }
 
@@ -57,6 +71,7 @@ export function useFrameStepper(
         video.cancelVideoFrameCallback(handle)
       }
       video.removeEventListener('seeked', onSeeked)
+      video.removeEventListener('loadedmetadata', onLoadedMetadata)
     }
   }, [ref, fps])
 
@@ -64,11 +79,21 @@ export function useFrameStepper(
     (target: number) => {
       const video = ref.current
       if (!video) return
-      const clamped = Math.max(0, Math.min(totalFrames - 1, target))
+      const max = Math.max(0, totalFrames - 1)
+      const clamped = Math.max(0, totalFrames > 0 ? Math.min(max, target) : target)
       setFrameIndex(clamped)
       const targetTime = (clamped + 0.5) / fps
+      // If metadata isn't loaded yet, stash the target and apply it on `loadedmetadata`.
+      if (video.readyState < 1 || !isFinite(video.duration)) {
+        pendingTarget.current = targetTime
+        return
+      }
       video.pause()
-      video.currentTime = targetTime
+      try {
+        video.currentTime = targetTime
+      } catch {
+        pendingTarget.current = targetTime
+      }
     },
     [ref, fps, totalFrames],
   )

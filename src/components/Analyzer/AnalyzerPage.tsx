@@ -10,17 +10,22 @@ import ToolPalette from './ToolPalette'
 import AnnotationOverlay from './AnnotationOverlay'
 import { IconBack, IconTrash, IconUndo } from '../shared/Icons'
 import { db } from '../../lib/db'
+import { attachThumbnail, getPendingFile } from '../../lib/recordings'
+import { captureFrameThumbnail } from '../../lib/videoMeta'
 import type { Annotation } from '../../types'
 
 export default function AnalyzerPage() {
   const { id } = useParams()
   const recording = useRecording(id)
-  const videoUrl = useObjectUrl(recording?.videoFileName)
+  const pendingFile = id ? getPendingFile(id) : undefined
+  const videoUrl = useObjectUrl(recording?.videoFileName, pendingFile)
+  const thumbnailUrl = useObjectUrl(recording?.thumbnailFileName)
   const videoRef = useRef<HTMLVideoElement>(null)
   const state = useVideoState(videoRef)
   const [speed, setSpeed] = useState(1)
   const [annotations, setAnnotations] = useState<Annotation[]>([])
   const hydratedFor = useRef<string | undefined>(undefined)
+  const thumbnailCapturedFor = useRef<string | undefined>(undefined)
 
   const fps = recording?.fps ?? 30
   const duration = state.duration || recording?.duration || 0
@@ -36,6 +41,81 @@ export default function AnalyzerPage() {
       setAnnotations(recording.annotations ?? [])
     }
   }, [recording])
+
+  // Force iOS to decode the first frame: call load() on src change, then
+  // seek to 0 once metadata is loaded. Safari often only paints after an
+  // explicit seek, otherwise the element stays black until play.
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v || !videoUrl) return
+    try {
+      v.load()
+    } catch {
+      // ignore
+    }
+    const onLoaded = () => {
+      try {
+        v.currentTime = 0
+      } catch {
+        // ignore
+      }
+    }
+    v.addEventListener('loadedmetadata', onLoaded)
+    return () => v.removeEventListener('loadedmetadata', onLoaded)
+  }, [videoUrl])
+
+  // Capture the first decoded frame as the recording's thumbnail. Only runs
+  // when the recording is missing a thumbnail (typical for a fresh import).
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v || !recording) return
+    if (recording.thumbnailFileName) return
+    if (thumbnailCapturedFor.current === recording.id) return
+
+    type RVFCMeta = { mediaTime: number }
+    type RVFCVideo = HTMLVideoElement & {
+      requestVideoFrameCallback?: (cb: (now: number, meta: RVFCMeta) => void) => number
+      cancelVideoFrameCallback?: (handle: number) => void
+    }
+    const rv = v as RVFCVideo
+    let cancelled = false
+    let handle: number | undefined
+
+    const capture = async () => {
+      if (cancelled) return
+      try {
+        const blob = await captureFrameThumbnail(v)
+        if (cancelled) return
+        thumbnailCapturedFor.current = recording.id
+        await attachThumbnail(recording.id, blob)
+      } catch (e) {
+        console.warn('Thumbnail capture failed', e)
+      }
+    }
+
+    if (typeof rv.requestVideoFrameCallback === 'function') {
+      handle = rv.requestVideoFrameCallback!(() => {
+        void capture()
+      })
+    } else {
+      const onSeeked = () => {
+        v.removeEventListener('seeked', onSeeked)
+        void capture()
+      }
+      v.addEventListener('seeked', onSeeked)
+      return () => {
+        cancelled = true
+        v.removeEventListener('seeked', onSeeked)
+      }
+    }
+
+    return () => {
+      cancelled = true
+      if (handle !== undefined && typeof rv.cancelVideoFrameCallback === 'function') {
+        rv.cancelVideoFrameCallback(handle)
+      }
+    }
+  }, [recording, videoUrl])
 
   const persist = (next: Annotation[]) => {
     setAnnotations(next)
@@ -53,7 +133,9 @@ export default function AnalyzerPage() {
 
   const commitAnnotation = (a: Annotation) => persist([...annotations, a])
   const updateAnnotation = (annotationId: string, partial: Partial<Annotation>) => {
-    persist(annotations.map((a) => (a.id === annotationId ? { ...a, ...partial } : a)))
+    persist(
+      annotations.map((a) => (a.id === annotationId ? ({ ...a, ...partial } as Annotation) : a)),
+    )
   }
   const undo = () => persist(annotations.slice(0, -1))
   const clearAll = () => persist([])
@@ -83,6 +165,7 @@ export default function AnalyzerPage() {
   const currentFrame = stepper.frameIndex
   const paddedFrame = String(currentFrame).padStart(String(Math.max(total - 1, 0)).length, '0')
   const hasAnnotations = annotations.length > 0
+  const scrubReady = state.ready && total > 0
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-black">
@@ -100,6 +183,7 @@ export default function AnalyzerPage() {
             <video
               ref={videoRef}
               src={videoUrl}
+              poster={thumbnailUrl}
               playsInline
               muted
               preload="auto"
@@ -140,7 +224,13 @@ export default function AnalyzerPage() {
                 <span className="text-white/55"> / {Math.max(total - 1, 0)}</span>
               </span>
               <span className="h-2.5 w-px bg-white/40" />
-              <span>{fps} fps</span>
+              <span>{recording.fps ? `${recording.fps} fps` : '— fps'}</span>
+              {recording.pending ? (
+                <>
+                  <span className="h-2.5 w-px bg-white/40" />
+                  <span className="sl-pulse">Saving…</span>
+                </>
+              ) : null}
             </p>
           </div>
           <button
@@ -164,6 +254,14 @@ export default function AnalyzerPage() {
         </div>
       </div>
 
+      {recording.failed ? (
+        <div className="pointer-events-auto absolute inset-x-0 top-16 z-20 mx-auto max-w-sm px-4">
+          <div className="border border-[color:var(--color-danger)] bg-black/80 px-3 py-2 text-[12px] text-[color:var(--color-danger)]">
+            Saving this clip failed. Re-import from the library to retry.
+          </div>
+        </div>
+      ) : null}
+
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/90 via-black/55 to-transparent">
         <div
           className="pt-6"
@@ -174,6 +272,7 @@ export default function AnalyzerPage() {
             totalFrames={stepper.totalFrames}
             fps={fps}
             onSeekFrame={stepper.seekToFrame}
+            disabled={!scrubReady}
           />
           <div className="pointer-events-auto flex items-center justify-between gap-2 px-3 py-1.5">
             <ToolPalette />

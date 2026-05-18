@@ -5,9 +5,10 @@ interface ScrubBarProps {
   totalFrames: number
   fps: number
   onSeekFrame: (frame: number) => void
+  disabled?: boolean
 }
 
-export default function ScrubBar({ frameIndex, totalFrames, fps, onSeekFrame }: ScrubBarProps) {
+export default function ScrubBar({ frameIndex, totalFrames, fps, onSeekFrame, disabled }: ScrubBarProps) {
   const trackRef = useRef<HTMLDivElement>(null)
   const collapseTimer = useRef<number | undefined>(undefined)
   const [active, setActive] = useState(false)
@@ -38,12 +39,14 @@ export default function ScrubBar({ frameIndex, totalFrames, fps, onSeekFrame }: 
   )
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (disabled) return
     e.currentTarget.setPointerCapture(e.pointerId)
     if (collapseTimer.current) window.clearTimeout(collapseTimer.current)
     setActive(true)
     seekFromPointer(e.clientX)
   }
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (disabled) return
     if (e.buttons !== 1) return
     seekFromPointer(e.clientX)
   }
@@ -74,10 +77,12 @@ export default function ScrubBar({ frameIndex, totalFrames, fps, onSeekFrame }: 
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         onKeyDown={(e) => {
+          if (disabled) return
           if (e.key === 'ArrowLeft') onSeekFrame(Math.max(0, safeFrame - 1))
           else if (e.key === 'ArrowRight') onSeekFrame(Math.min(max, safeFrame + 1))
         }}
-        className="pointer-events-auto relative cursor-pointer touch-none select-none"
+        aria-disabled={disabled || undefined}
+        className={`relative touch-none select-none ${disabled ? 'pointer-events-none opacity-40' : 'pointer-events-auto cursor-pointer'}`}
         style={{ height: 32 }}
       >
         {/* Base track */}
