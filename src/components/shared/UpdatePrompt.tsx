@@ -10,7 +10,10 @@ export default function UpdatePrompt() {
   if (!needRefresh) return null
 
   return (
-    <div className="fixed inset-x-0 top-0 z-50 px-5 pt-3">
+    <div
+      className="fixed inset-x-0 top-0 z-50 px-5"
+      style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
+    >
       <div className="mx-auto flex max-w-md items-start gap-3 border border-[color:var(--color-border)] bg-[color:var(--color-bg-elevated)] px-3.5 py-3 sl-slide-down">
         <div className="flex-1 leading-snug">
           <p className="label-eyebrow-sm text-[color:var(--color-accent)]">Update available</p>
