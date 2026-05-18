@@ -1,13 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { format } from 'date-fns'
-import { writeFile } from '../../lib/opfs'
-import { probeVideo } from '../../lib/videoMeta'
-import { db } from '../../lib/db'
-import { uid } from '../../lib/geometry'
+import { commitCapture } from '../../lib/recordings'
 import Brackets from '../shared/Brackets'
 import { IconBack } from '../shared/Icons'
-import type { Recording } from '../../types'
 
 type Status = 'idle' | 'requesting' | 'preview' | 'recording' | 'saving' | 'error'
 
@@ -45,10 +40,15 @@ export default function CapturePage() {
     async function start() {
       setStatus('requesting')
       try {
+        // Ask for the highest realistic frame rate; the browser negotiates
+        // down to what the device supports. Note: iOS Safari does not expose
+        // AVFoundation's high-speed (240 fps) capture mode through
+        // getUserMedia, so iPhone caps at ~60 fps here. Android and desktop
+        // webcams may go higher. We never fake the rate via interpolation.
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: 'environment',
-            frameRate: { ideal: 60 },
+            frameRate: { ideal: 240, min: 30 },
             width: { ideal: 1920 },
             height: { ideal: 1080 },
           },
@@ -135,28 +135,21 @@ export default function CapturePage() {
   async function finalize(ext: string, mime: string) {
     try {
       const blob = new Blob(chunksRef.current, { type: mime })
-      const file = new File([blob], `capture.${ext}`, { type: mime })
-      const { meta, thumbnail } = await probeVideo(file)
-      const id = uid()
-      const videoFileName = `${id}.${ext}`
-      const thumbnailFileName = `${id}.jpg`
-      await writeFile(videoFileName, file)
-      await writeFile(thumbnailFileName, thumbnail)
-      const now = new Date()
-      const recording: Recording = {
-        id,
-        name: `Swing — ${format(now, 'MMM d, yyyy HH:mm')}`,
-        videoFileName,
-        thumbnailFileName,
-        fps: meta.fps,
-        duration: meta.duration,
-        width: meta.width,
-        height: meta.height,
-        createdAt: now.getTime(),
-        annotations: [],
-      }
-      await db.recordings.add(recording)
-      navigate(`/analyzer/${id}`, { replace: true })
+      const settings = streamRef.current?.getVideoTracks()[0]?.getSettings()
+      const trackFps = settings?.frameRate ? Math.round(settings.frameRate) : (fps ?? 30)
+      const trackW = settings?.width ?? dims?.w ?? 0
+      const trackH = settings?.height ?? dims?.h ?? 0
+      const durationSec = (Date.now() - startedAtRef.current) / 1000
+      const recording = await commitCapture({
+        blob,
+        ext,
+        mime,
+        width: trackW,
+        height: trackH,
+        durationSec,
+        fps: trackFps,
+      })
+      navigate(`/analyzer/${recording.id}`, { replace: true })
     } catch (e) {
       console.error(e)
       setError((e as Error).message || 'Failed to save recording')
