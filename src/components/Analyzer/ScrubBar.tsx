@@ -87,8 +87,8 @@ export default function ScrubBar({ frameIndex, totalFrames, fps, onSeekFrame, di
       >
         {/* Base track */}
         <div
-          className="absolute left-0 right-0 top-1/2 -translate-y-1/2 rounded-full bg-white/15 transition-[height] duration-200"
-          style={{ height: active ? 4 : 2 }}
+          className="absolute left-0 right-0 top-1/2 -translate-y-1/2 rounded-full bg-white/25 transition-[height] duration-200"
+          style={{ height: active ? 4 : 3 }}
         />
 
         {/* Ticks (only when active) */}
@@ -116,7 +116,7 @@ export default function ScrubBar({ frameIndex, totalFrames, fps, onSeekFrame, di
         {/* Progress fill */}
         <div
           className="absolute left-0 top-1/2 -translate-y-1/2 rounded-full bg-[color:var(--color-accent)] transition-[height] duration-200"
-          style={{ width: `${progress * 100}%`, height: active ? 4 : 2 }}
+          style={{ width: `${progress * 100}%`, height: active ? 4 : 3 }}
         />
 
         {/* Playhead */}
@@ -128,8 +128,8 @@ export default function ScrubBar({ frameIndex, totalFrames, fps, onSeekFrame, di
           <div
             className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[color:var(--color-accent)] transition-all duration-200"
             style={{
-              width: active ? 4 : 8,
-              height: active ? 18 : 8,
+              width: active ? 4 : 10,
+              height: active ? 18 : 10,
               boxShadow: '0 0 0 1.5px rgba(0,0,0,0.6)',
             }}
           />
