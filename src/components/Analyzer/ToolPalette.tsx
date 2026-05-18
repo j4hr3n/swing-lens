@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useAppStore } from '../../store/app'
 import type { AnnotationColor, ToolId } from '../../types'
 import { COLOR_ORDER, COLOR_VALUES } from '../../lib/colors'
@@ -19,16 +19,7 @@ export default function ToolPalette() {
 
   return (
     <div className="flex items-center gap-1">
-      <div className="flex gap-0.5">
-        {COLOR_ORDER.map((color) => (
-          <ColorSwatch
-            key={color}
-            color={color}
-            active={color === currentColor}
-            onSelect={() => setColor(color)}
-          />
-        ))}
-      </div>
+      <ColorPicker currentColor={currentColor} onSelect={setColor} />
       <div className="mx-1 h-4 w-px bg-white/15" />
       <div className="flex gap-0">
         {TOOLS.map((tool) => {
@@ -58,6 +49,68 @@ export default function ToolPalette() {
           )
         })}
       </div>
+    </div>
+  )
+}
+
+function ColorPicker({
+  currentColor,
+  onSelect,
+}: {
+  currentColor: AnnotationColor
+  onSelect: (c: AnnotationColor) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDocPointer = (e: PointerEvent) => {
+      if (!containerRef.current) return
+      if (e.target instanceof Node && containerRef.current.contains(e.target)) return
+      setOpen(false)
+    }
+    document.addEventListener('pointerdown', onDocPointer, true)
+    return () => document.removeEventListener('pointerdown', onDocPointer, true)
+  }, [open])
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        aria-label={`Color (current: ${currentColor})`}
+        aria-haspopup="true"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="relative flex h-9 w-9 items-center justify-center transition-transform active:scale-95"
+      >
+        <span
+          className="block h-4 w-4"
+          style={{
+            background: COLOR_VALUES[currentColor],
+            borderRadius: '2px',
+            boxShadow: '0 0 0 1px rgba(255,255,255,0.25)',
+          }}
+        />
+      </button>
+      {open ? (
+        <div
+          role="menu"
+          className="absolute bottom-full left-0 mb-2 flex gap-0.5 border border-[color:var(--color-border)] bg-[color:var(--color-bg-elevated)] p-1 shadow-2xl"
+        >
+          {COLOR_ORDER.map((c) => (
+            <ColorSwatch
+              key={c}
+              color={c}
+              active={c === currentColor}
+              onSelect={() => {
+                onSelect(c)
+                setOpen(false)
+              }}
+            />
+          ))}
+        </div>
+      ) : null}
     </div>
   )
 }

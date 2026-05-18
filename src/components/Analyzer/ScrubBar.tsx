@@ -60,7 +60,7 @@ export default function ScrubBar({ frameIndex, totalFrames, fps, onSeekFrame }: 
   const currentTime = safeFrame / Math.max(fps, 1)
 
   return (
-    <div className="px-3 pt-2 pb-1">
+    <div className="px-3 pt-2 pb-2">
       <div
         ref={trackRef}
         role="slider"
@@ -77,8 +77,8 @@ export default function ScrubBar({ frameIndex, totalFrames, fps, onSeekFrame }: 
           if (e.key === 'ArrowLeft') onSeekFrame(Math.max(0, safeFrame - 1))
           else if (e.key === 'ArrowRight') onSeekFrame(Math.min(max, safeFrame + 1))
         }}
-        className="pointer-events-auto relative cursor-pointer touch-none select-none transition-[height] duration-200"
-        style={{ height: active ? 28 : 14 }}
+        className="pointer-events-auto relative cursor-pointer touch-none select-none"
+        style={{ height: 32 }}
       >
         {/* Base track */}
         <div
