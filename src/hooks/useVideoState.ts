@@ -1,4 +1,4 @@
-import { useEffect, useState, type RefObject } from 'react'
+import { useEffect, useState } from 'react'
 
 export interface VideoState {
   playing: boolean
@@ -7,7 +7,7 @@ export interface VideoState {
   ready: boolean
 }
 
-export function useVideoState(ref: RefObject<HTMLVideoElement | null>): VideoState {
+export function useVideoState(video: HTMLVideoElement | null): VideoState {
   const [state, setState] = useState<VideoState>({
     playing: false,
     currentTime: 0,
@@ -16,7 +16,6 @@ export function useVideoState(ref: RefObject<HTMLVideoElement | null>): VideoSta
   })
 
   useEffect(() => {
-    const video = ref.current
     if (!video) return
 
     const update = (patch: Partial<VideoState>) => setState((prev) => ({ ...prev, ...patch }))
@@ -43,6 +42,7 @@ export function useVideoState(ref: RefObject<HTMLVideoElement | null>): VideoSta
     video.addEventListener('seeked', onSeeked)
 
     if (video.readyState >= 1) onLoaded()
+    update({ playing: !video.paused })
 
     return () => {
       video.removeEventListener('loadedmetadata', onLoaded)
@@ -52,7 +52,7 @@ export function useVideoState(ref: RefObject<HTMLVideoElement | null>): VideoSta
       video.removeEventListener('pause', onPause)
       video.removeEventListener('seeked', onSeeked)
     }
-  }, [ref])
+  }, [video])
 
   return state
 }

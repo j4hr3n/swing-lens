@@ -20,8 +20,8 @@ export default function AnalyzerPage() {
   const pendingFile = id ? getPendingFile(id) : undefined
   const videoUrl = useObjectUrl(recording?.videoFileName, pendingFile)
   const thumbnailUrl = useObjectUrl(recording?.thumbnailFileName)
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const state = useVideoState(videoRef)
+  const [video, setVideo] = useState<HTMLVideoElement | null>(null)
+  const state = useVideoState(video)
   const [speed, setSpeed] = useState(1)
   const [annotations, setAnnotations] = useState<Annotation[]>([])
   const hydratedFor = useRef<string | undefined>(undefined)
@@ -29,11 +29,11 @@ export default function AnalyzerPage() {
 
   const fps = recording?.fps ?? 30
   const duration = state.duration || recording?.duration || 0
-  const stepper = useFrameStepper(videoRef, fps, duration)
+  const stepper = useFrameStepper(video, fps, duration)
 
   useEffect(() => {
-    if (videoRef.current) videoRef.current.playbackRate = speed
-  }, [speed, videoUrl])
+    if (video) video.playbackRate = speed
+  }, [speed, video])
 
   useEffect(() => {
     if (recording && hydratedFor.current !== recording.id) {
@@ -46,7 +46,7 @@ export default function AnalyzerPage() {
   // seek to 0 once metadata is loaded. Safari often only paints after an
   // explicit seek, otherwise the element stays black until play.
   useEffect(() => {
-    const v = videoRef.current
+    const v = video
     if (!v || !videoUrl) return
     try {
       v.load()
@@ -62,12 +62,12 @@ export default function AnalyzerPage() {
     }
     v.addEventListener('loadedmetadata', onLoaded)
     return () => v.removeEventListener('loadedmetadata', onLoaded)
-  }, [videoUrl])
+  }, [video, videoUrl])
 
   // Capture the first decoded frame as the recording's thumbnail. Only runs
   // when the recording is missing a thumbnail (typical for a fresh import).
   useEffect(() => {
-    const v = videoRef.current
+    const v = video
     if (!v || !recording) return
     if (recording.thumbnailFileName) return
     if (thumbnailCapturedFor.current === recording.id) return
@@ -115,7 +115,7 @@ export default function AnalyzerPage() {
         rv.cancelVideoFrameCallback(handle)
       }
     }
-  }, [recording, videoUrl])
+  }, [video, recording, videoUrl])
 
   const persist = (next: Annotation[]) => {
     setAnnotations(next)
@@ -125,10 +125,9 @@ export default function AnalyzerPage() {
   }
 
   const togglePlay = () => {
-    const v = videoRef.current
-    if (!v) return
-    if (v.paused) void v.play()
-    else v.pause()
+    if (!video) return
+    if (video.paused) void video.play()
+    else video.pause()
   }
 
   const commitAnnotation = (a: Annotation) => persist([...annotations, a])
@@ -181,7 +180,7 @@ export default function AnalyzerPage() {
             }}
           >
             <video
-              ref={videoRef}
+              ref={setVideo}
               src={videoUrl}
               poster={thumbnailUrl}
               playsInline

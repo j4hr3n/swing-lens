@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 type RVFCMetadata = { mediaTime: number; presentedFrames: number }
 type RVFCVideo = HTMLVideoElement & {
@@ -14,7 +14,7 @@ export interface FrameStepperApi {
 }
 
 export function useFrameStepper(
-  ref: RefObject<HTMLVideoElement | null>,
+  video: HTMLVideoElement | null,
   fps: number,
   duration: number,
 ): FrameStepperApi {
@@ -24,8 +24,8 @@ export function useFrameStepper(
   const pendingTarget = useRef<number | undefined>(undefined)
 
   useEffect(() => {
-    const video = ref.current as RVFCVideo | null
     if (!video) return
+    const rvfcVideo = video as RVFCVideo
 
     const onSeeked = () => setFrameIndex(Math.round(video.currentTime * fps))
     const onLoadedMetadata = () => {
@@ -42,7 +42,7 @@ export function useFrameStepper(
     video.addEventListener('seeked', onSeeked)
     video.addEventListener('loadedmetadata', onLoadedMetadata)
 
-    const supportsRVFC = typeof video.requestVideoFrameCallback === 'function'
+    const supportsRVFC = typeof rvfcVideo.requestVideoFrameCallback === 'function'
     if (!supportsRVFC) {
       const onTimeUpdate = () => setFrameIndex(Math.round(video.currentTime * fps))
       video.addEventListener('timeupdate', onTimeUpdate)
@@ -60,24 +60,23 @@ export function useFrameStepper(
       if (!active) return
       lastMediaTime.current = meta.mediaTime
       setFrameIndex(Math.round(meta.mediaTime * fps))
-      handle = video.requestVideoFrameCallback!(onFrame)
+      handle = rvfcVideo.requestVideoFrameCallback!(onFrame)
     }
 
-    handle = video.requestVideoFrameCallback!(onFrame)
+    handle = rvfcVideo.requestVideoFrameCallback!(onFrame)
 
     return () => {
       active = false
-      if (handle !== undefined && typeof video.cancelVideoFrameCallback === 'function') {
-        video.cancelVideoFrameCallback(handle)
+      if (handle !== undefined && typeof rvfcVideo.cancelVideoFrameCallback === 'function') {
+        rvfcVideo.cancelVideoFrameCallback(handle)
       }
       video.removeEventListener('seeked', onSeeked)
       video.removeEventListener('loadedmetadata', onLoadedMetadata)
     }
-  }, [ref, fps])
+  }, [video, fps])
 
   const seekToFrame = useCallback(
     (target: number) => {
-      const video = ref.current
       if (!video) return
       const max = Math.max(0, totalFrames - 1)
       const clamped = Math.max(0, totalFrames > 0 ? Math.min(max, target) : target)
@@ -95,7 +94,7 @@ export function useFrameStepper(
         pendingTarget.current = targetTime
       }
     },
-    [ref, fps, totalFrames],
+    [video, fps, totalFrames],
   )
 
   const step = useCallback(
