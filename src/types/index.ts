@@ -18,11 +18,13 @@ export interface Recording {
   id: string
   name: string
   videoFileName: string
-  thumbnailFileName: string
-  fps: number
+  thumbnailFileName?: string
+  fps?: number
   duration: number
   width: number
   height: number
   createdAt: number
   annotations: Annotation[]
+  pending?: boolean
+  failed?: boolean
 }
