@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 type RVFCMetadata = { mediaTime: number; presentedFrames: number }
 type RVFCVideo = HTMLVideoElement & {
@@ -19,15 +19,32 @@ export function useFrameStepper(
   duration: number,
 ): FrameStepperApi {
   const [frameIndex, setFrameIndex] = useState(0)
-  const totalFrames = Math.max(0, Math.round((isFinite(duration) ? duration : 0) * fps))
-  const lastMediaTime = useRef(0)
+  const totalFrames = useMemo(
+    () => Math.max(0, Math.round((isFinite(duration) ? duration : 0) * fps)),
+    [duration, fps],
+  )
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const frameIndexRef = useRef(0)
   const pendingTarget = useRef<number | undefined>(undefined)
+  const rafRef = useRef<number | undefined>(undefined)
+
+  useEffect(() => {
+    videoRef.current = video
+  }, [video])
+
+  const commitFrameIndex = useCallback((next: number) => {
+    const clamped = Math.max(0, totalFrames > 0 ? Math.min(totalFrames - 1, next) : next)
+    if (frameIndexRef.current === clamped) return
+    frameIndexRef.current = clamped
+    setFrameIndex(clamped)
+  }, [totalFrames])
 
   useEffect(() => {
     if (!video) return
     const rvfcVideo = video as RVFCVideo
 
-    const onSeeked = () => setFrameIndex(Math.round(video.currentTime * fps))
+    const frameFromTime = (time: number) => Math.round(time * fps)
+    const onSeeked = () => commitFrameIndex(frameFromTime(video.currentTime))
     const onLoadedMetadata = () => {
       if (pendingTarget.current !== undefined) {
         const target = pendingTarget.current
@@ -44,7 +61,7 @@ export function useFrameStepper(
 
     const supportsRVFC = typeof rvfcVideo.requestVideoFrameCallback === 'function'
     if (!supportsRVFC) {
-      const onTimeUpdate = () => setFrameIndex(Math.round(video.currentTime * fps))
+      const onTimeUpdate = () => commitFrameIndex(frameFromTime(video.currentTime))
       video.addEventListener('timeupdate', onTimeUpdate)
       return () => {
         video.removeEventListener('timeupdate', onTimeUpdate)
@@ -58,51 +75,64 @@ export function useFrameStepper(
 
     const onFrame = (_now: number, meta: RVFCMetadata) => {
       if (!active) return
-      lastMediaTime.current = meta.mediaTime
-      setFrameIndex(Math.round(meta.mediaTime * fps))
-      handle = rvfcVideo.requestVideoFrameCallback!(onFrame)
+      const next = frameFromTime(meta.mediaTime)
+      if (rafRef.current === undefined && next !== frameIndexRef.current) {
+        rafRef.current = window.requestAnimationFrame(() => {
+          rafRef.current = undefined
+          commitFrameIndex(next)
+        })
+      }
+      handle = rvfcVideo.requestVideoFrameCallback(onFrame)
     }
 
-    handle = rvfcVideo.requestVideoFrameCallback!(onFrame)
+    handle = rvfcVideo.requestVideoFrameCallback(onFrame)
 
     return () => {
       active = false
       if (handle !== undefined && typeof rvfcVideo.cancelVideoFrameCallback === 'function') {
         rvfcVideo.cancelVideoFrameCallback(handle)
       }
+      if (rafRef.current !== undefined) {
+        window.cancelAnimationFrame(rafRef.current)
+        rafRef.current = undefined
+      }
       video.removeEventListener('seeked', onSeeked)
       video.removeEventListener('loadedmetadata', onLoadedMetadata)
     }
-  }, [video, fps])
+  }, [video, fps, commitFrameIndex])
 
   const seekToFrame = useCallback(
     (target: number) => {
-      if (!video) return
+      const currentVideo = videoRef.current
+      if (!currentVideo) return
       const max = Math.max(0, totalFrames - 1)
       const clamped = Math.max(0, totalFrames > 0 ? Math.min(max, target) : target)
-      setFrameIndex(clamped)
+      commitFrameIndex(clamped)
       const targetTime = (clamped + 0.5) / fps
       // If metadata isn't loaded yet, stash the target and apply it on `loadedmetadata`.
-      if (video.readyState < 1 || !isFinite(video.duration)) {
+      if (currentVideo.readyState < 1 || !isFinite(currentVideo.duration)) {
         pendingTarget.current = targetTime
         return
       }
-      video.pause()
+      currentVideo.pause()
       try {
-        video.currentTime = targetTime
+        currentVideo.currentTime = targetTime
       } catch {
         pendingTarget.current = targetTime
       }
     },
-    [video, fps, totalFrames],
+    [commitFrameIndex, fps, totalFrames],
   )
 
   const step = useCallback(
     (direction: 1 | -1) => {
-      seekToFrame(frameIndex + direction)
+      seekToFrame(frameIndexRef.current + direction)
     },
-    [frameIndex, seekToFrame],
+    [seekToFrame],
   )
 
-  return { frameIndex, totalFrames, step, seekToFrame }
+  return useMemo(
+    () => ({ frameIndex, totalFrames, step, seekToFrame }),
+    [frameIndex, totalFrames, step, seekToFrame],
+  )
 }

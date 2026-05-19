@@ -1,12 +1,14 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { format, isToday, isYesterday } from 'date-fns'
 import { useRecordings } from '../../hooks/useRecordings'
+import { useThumbnailUrls } from '../../hooks/useThumbnailUrls'
 import { deleteRecording, renameRecording } from '../../lib/recordings'
 import RecordingTile from './RecordingTile'
 import ImportSheet from './ImportSheet'
 import RecordingMenu from './RecordingMenu'
 import RenameDialog from '../shared/RenameDialog'
+import Dialog from '../shared/Dialog'
 import InstallHint from '../shared/InstallHint'
 import Wordmark from '../shared/Wordmark'
 import { IconPlus, IconSettings } from '../shared/Icons'
@@ -24,6 +26,17 @@ export default function LibraryPage() {
   const [menuFor, setMenuFor] = useState<Recording | undefined>()
   const [renameFor, setRenameFor] = useState<Recording | undefined>()
   const [pendingDelete, setPendingDelete] = useState<Recording | undefined>()
+  const [visibleTileIds, setVisibleTileIds] = useState<Set<string>>(() => new Set())
+  const thumbnailUrls = useThumbnailUrls(recordings, visibleTileIds)
+
+  const markTileVisible = useCallback((id: string) => {
+    setVisibleTileIds((current) => {
+      if (current.has(id)) return current
+      const next = new Set(current)
+      next.add(id)
+      return next
+    })
+  }, [])
 
   const groups = useMemo<DateGroup[]>(() => {
     if (!recordings) return []
@@ -85,7 +98,13 @@ export default function LibraryPage() {
                 </h2>
                 <div className="grid grid-cols-3 gap-2">
                   {g.items.map((r) => (
-                    <RecordingTile key={r.id} recording={r} onMenu={setMenuFor} />
+                    <RecordingTile
+                      key={r.id}
+                      recording={r}
+                      thumbnailUrl={thumbnailUrls.get(r.id)}
+                      onVisible={markTileVisible}
+                      onMenu={setMenuFor}
+                    />
                   ))}
                 </div>
               </section>
@@ -121,17 +140,21 @@ export default function LibraryPage() {
         open={!!renameFor}
         initial={renameFor?.name ?? ''}
         onCancel={() => setRenameFor(undefined)}
-        onSave={async (name) => {
-          if (renameFor) await renameRecording(renameFor.id, name)
-          setRenameFor(undefined)
+        onSave={(name) => {
+          void (async () => {
+            if (renameFor) await renameRecording(renameFor.id, name)
+            setRenameFor(undefined)
+          })()
         }}
       />
       <ConfirmDelete
         recording={pendingDelete}
         onCancel={() => setPendingDelete(undefined)}
-        onConfirm={async () => {
-          if (pendingDelete) await deleteRecording(pendingDelete.id)
-          setPendingDelete(undefined)
+        onConfirm={() => {
+          void (async () => {
+            if (pendingDelete) await deleteRecording(pendingDelete.id)
+            setPendingDelete(undefined)
+          })()
         }}
       />
     </div>
@@ -201,33 +224,26 @@ function ConfirmDelete({
 }) {
   if (!recording) return null
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6" onClick={onCancel}>
-      <div
-        className="w-full max-w-sm rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-elevated)] p-5 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <p className="label-eyebrow text-[color:var(--color-text-muted)]">Confirm</p>
-        <h2 className="mt-2 text-[15px] font-medium leading-snug">Delete "{recording.name}"?</h2>
-        <p className="mt-2 text-[12px] leading-relaxed text-[color:var(--color-text-muted)]">
-          The clip and all annotations are removed from this device. This cannot be undone.
-        </p>
-        <div className="mt-5 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-lg px-4 py-2 text-[13px] text-[color:var(--color-text-muted)] active:text-[color:var(--color-text)]"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className="rounded-lg border border-[color:var(--color-danger)] bg-[color:var(--color-danger)]/10 px-4 py-2 text-[13px] font-medium text-[color:var(--color-danger)] active:bg-[color:var(--color-danger)] active:text-white"
-          >
-            Delete
-          </button>
-        </div>
+    <Dialog open kicker="Confirm" title={`Delete "${recording.name}"?`} onClose={onCancel}>
+      <p className="mt-2 text-[12px] leading-relaxed text-[color:var(--color-text-muted)]">
+        The clip and all annotations are removed from this device. This cannot be undone.
+      </p>
+      <div className="mt-5 flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-lg px-4 py-2 text-[13px] text-[color:var(--color-text-muted)] active:text-[color:var(--color-text)]"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={onConfirm}
+          className="rounded-lg border border-[color:var(--color-danger)] bg-[color:var(--color-danger)]/10 px-4 py-2 text-[13px] font-medium text-[color:var(--color-danger)] active:bg-[color:var(--color-danger)] active:text-white"
+        >
+          Delete
+        </button>
       </div>
-    </div>
+    </Dialog>
   )
 }

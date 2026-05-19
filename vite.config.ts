@@ -9,6 +9,10 @@ export default defineConfig(({ command }) => {
   const base = isBuild ? '/swing-lens/' : '/'
   return {
     base,
+    test: {
+      environment: 'jsdom',
+      setupFiles: './src/test/setup.ts',
+    },
     server: {
       host: true,
     },

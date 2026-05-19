@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { db } from '../../lib/db'
 import { clearAll as clearAllOpfs } from '../../lib/opfs'
 import { IconBack } from '../shared/Icons'
+import Dialog from '../shared/Dialog'
 
 interface StorageInfo {
   used: number
@@ -22,28 +23,30 @@ export default function SettingsPage() {
   const [confirmingClear, setConfirmingClear] = useState(false)
   const [clearing, setClearing] = useState(false)
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     if ('storage' in navigator && navigator.storage.estimate) {
       const est = await navigator.storage.estimate()
       setInfo({ used: est.usage ?? 0, quota: est.quota ?? 0 })
     }
     setCount(await db.recordings.count())
-  }
+  }, [])
 
   useEffect(() => {
     void refresh()
-  }, [])
+  }, [refresh])
 
-  const doClear = async () => {
+  const doClear = () => {
     setClearing(true)
-    try {
-      await db.recordings.clear()
-      await clearAllOpfs()
-      setConfirmingClear(false)
-      await refresh()
-    } finally {
-      setClearing(false)
-    }
+    void (async () => {
+      try {
+        await db.recordings.clear()
+        await clearAllOpfs()
+        setConfirmingClear(false)
+        await refresh()
+      } finally {
+        setClearing(false)
+      }
+    })()
   }
 
   const percent = info && info.quota > 0 ? Math.min(100, (info.used / info.quota) * 100) : 0
@@ -135,39 +138,36 @@ export default function SettingsPage() {
       </main>
 
       {confirmingClear ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6"
-          onClick={() => !clearing && setConfirmingClear(false)}
+        <Dialog
+          open
+          kicker="Confirm"
+          title="Clear all recordings?"
+          onClose={() => {
+            if (!clearing) setConfirmingClear(false)
+          }}
         >
-          <div
-            className="w-full max-w-sm rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-elevated)] p-5 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="label-eyebrow text-[color:var(--color-text-muted)]">Confirm</p>
-            <h2 className="mt-2 text-[15px] font-medium leading-snug">Clear all recordings?</h2>
-            <p className="mt-2 text-[12px] leading-relaxed text-[color:var(--color-text-muted)]">
-              Every clip and annotation is removed from this device. This cannot be undone.
-            </p>
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setConfirmingClear(false)}
-                disabled={clearing}
-                className="rounded-lg px-4 py-2 text-[13px] text-[color:var(--color-text-muted)] active:text-[color:var(--color-text)]"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={doClear}
-                disabled={clearing}
-                className="rounded-lg border border-[color:var(--color-danger)] bg-[color:var(--color-danger)]/10 px-4 py-2 text-[13px] font-medium text-[color:var(--color-danger)] active:bg-[color:var(--color-danger)] active:text-white disabled:opacity-50"
-              >
-                {clearing ? 'Clearing…' : 'Clear all'}
-              </button>
-            </div>
+          <p className="mt-2 text-[12px] leading-relaxed text-[color:var(--color-text-muted)]">
+            Every clip and annotation is removed from this device. This cannot be undone.
+          </p>
+          <div className="mt-5 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setConfirmingClear(false)}
+              disabled={clearing}
+              className="rounded-lg px-4 py-2 text-[13px] text-[color:var(--color-text-muted)] active:text-[color:var(--color-text)]"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={doClear}
+              disabled={clearing}
+              className="rounded-lg border border-[color:var(--color-danger)] bg-[color:var(--color-danger)]/10 px-4 py-2 text-[13px] font-medium text-[color:var(--color-danger)] active:bg-[color:var(--color-danger)] active:text-white disabled:opacity-50"
+            >
+              {clearing ? 'Clearing…' : 'Clear all'}
+            </button>
           </div>
-        </div>
+        </Dialog>
       ) : null}
     </div>
   )

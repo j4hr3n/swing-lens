@@ -1,14 +1,14 @@
 import { type ReactNode, useEffect, useRef } from 'react'
 
-interface SheetProps {
+interface DialogProps {
   open: boolean
-  onClose: () => void
-  title?: string
   kicker?: string
+  title: string
   children: ReactNode
+  onClose: () => void
 }
 
-export default function Sheet({ open, onClose, title, kicker, children }: SheetProps) {
+export default function Dialog({ open, kicker, title, children, onClose }: DialogProps) {
   const panelRef = useRef<HTMLDivElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
 
@@ -28,6 +28,7 @@ export default function Sheet({ open, onClose, title, kicker, children }: SheetP
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
     }
+
     document.addEventListener('keydown', onKey)
     return () => {
       window.clearTimeout(focusTimer)
@@ -40,28 +41,24 @@ export default function Sheet({ open, onClose, title, kicker, children }: SheetP
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6"
       onClick={onClose}
+      role="presentation"
     >
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        className="w-full max-w-md rounded-t-2xl border border-b-0 border-[color:var(--color-border)] bg-[color:var(--color-bg-elevated)] p-5 pb-8 shadow-2xl sl-rise"
-        style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom))' }}
+        aria-labelledby="dialog-title"
+        className="w-full max-w-sm rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-elevated)] p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mx-auto mb-4 h-1 w-9 rounded-full bg-[color:var(--color-border)]" />
         {kicker ? (
-          <p className="label-eyebrow-sm mb-1.5 text-center text-[color:var(--color-text-muted)]">
-            {kicker}
-          </p>
+          <p className="label-eyebrow text-[color:var(--color-text-muted)]">{kicker}</p>
         ) : null}
-        {title ? (
-          <h2 className="mb-4 truncate text-center text-[14px] font-medium text-[color:var(--color-text)]">
-            {title}
-          </h2>
-        ) : null}
+        <h2 id="dialog-title" className="mt-2 text-[15px] font-medium leading-snug">
+          {title}
+        </h2>
         {children}
       </div>
     </div>

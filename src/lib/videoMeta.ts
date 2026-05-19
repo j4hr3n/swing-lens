@@ -83,6 +83,9 @@ export async function detectContainerFps(file: File): Promise<number | undefined
 
 /** Captures the currently-displayed frame of `video` as a JPEG blob. */
 export async function captureFrameThumbnail(video: HTMLVideoElement): Promise<Blob> {
+  if (video.videoWidth <= 0 || video.videoHeight <= 0) {
+    throw new Error('Video metadata is not ready for thumbnail capture')
+  }
   const canvas = document.createElement('canvas')
   canvas.width = video.videoWidth
   canvas.height = video.videoHeight

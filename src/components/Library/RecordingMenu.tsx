@@ -1,4 +1,5 @@
 import Sheet from '../shared/Sheet'
+import ChoiceButton from '../shared/ChoiceButton'
 import type { Recording } from '../../types'
 
 interface RecordingMenuProps {
@@ -12,20 +13,8 @@ export default function RecordingMenu({ recording, onClose, onRename, onDelete }
   return (
     <Sheet open={!!recording} onClose={onClose} kicker="Clip" title={recording?.name}>
       <div className="flex flex-col gap-2">
-        <button
-          type="button"
-          onClick={onRename}
-          className="w-full border border-[color:var(--color-border)] px-4 py-3 text-left text-[14px] font-medium text-[color:var(--color-text)] transition-colors active:bg-[color:var(--color-bg-input)]"
-        >
-          Rename
-        </button>
-        <button
-          type="button"
-          onClick={onDelete}
-          className="w-full border border-[color:var(--color-danger)]/30 px-4 py-3 text-left text-[14px] font-medium text-[color:var(--color-danger)] transition-colors active:bg-[color:var(--color-danger)]/10"
-        >
-          Delete
-        </button>
+        <ChoiceButton label="Rename" onClick={onRename} />
+        <ChoiceButton label="Delete" danger onClick={onDelete} />
       </div>
     </Sheet>
   )

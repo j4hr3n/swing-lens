@@ -3,7 +3,7 @@ import { db } from './db'
 import { deleteFile, writeFile } from './opfs'
 import { detectContainerFps, probeFast } from './videoMeta'
 import { uid } from './geometry'
-import type { Recording } from '../types'
+import type { Annotation, Recording } from '../types'
 
 function defaultName(at: Date): string {
   return `Swing — ${format(at, "MMM d, yyyy HH:mm")}`
@@ -28,7 +28,7 @@ export function getPendingFile(id: string): File | undefined {
 
 export interface ImportHandle {
   recording: Recording
-  finalize: Promise<void>
+  finalizeImport: Promise<void>
 }
 
 /**
@@ -60,21 +60,21 @@ export async function importRecording(file: File): Promise<ImportHandle> {
   }
   await db.recordings.add(recording)
 
-  const finalize = finalizeImport(id, file, videoFileName).catch(async (err) => {
+  const finalizePromise = finalizeImportInBackground(id, file, videoFileName).catch(async (err) => {
     console.error('Import finalize failed', err)
-    await db.recordings.update(id, { failed: true, pending: false }).catch(() => {})
+    await markRecordingFailed(id).catch(() => {})
   })
 
-  return { recording, finalize }
+  return { recording, finalizeImport: finalizePromise }
 }
 
-async function finalizeImport(
+async function finalizeImportInBackground(
   id: string,
   file: File,
   videoFileName: string,
 ): Promise<void> {
   try {
-    const [_, fps] = await Promise.all([
+    const [, fps] = await Promise.all([
       writeFile(videoFileName, file),
       detectContainerFps(file).catch(() => undefined),
     ])
@@ -105,6 +105,42 @@ export async function deleteRecording(id: string): Promise<void> {
 
 export async function renameRecording(id: string, name: string): Promise<void> {
   await db.recordings.update(id, { name })
+}
+
+export async function updateRecordingAnnotations(
+  id: string,
+  annotations: Annotation[],
+): Promise<void> {
+  await db.recordings.update(id, { annotations })
+}
+
+export async function updateRecordingAnnotation(
+  id: string,
+  annotationId: string,
+  partial: Partial<Annotation>,
+): Promise<void> {
+  const recording = await db.recordings.get(id)
+  if (!recording) return
+  await updateRecordingAnnotations(
+    id,
+    recording.annotations.map((annotation) => (
+      annotation.id === annotationId ? { ...annotation, ...partial } : annotation
+    )),
+  )
+}
+
+export async function clearRecordingAnnotations(id: string): Promise<void> {
+  await updateRecordingAnnotations(id, [])
+}
+
+export async function markRecordingFailed(id: string): Promise<void> {
+  await db.recordings.update(id, { failed: true, pending: false })
+}
+
+export function recordingStatus(recording: Recording): 'ready' | 'pending' | 'failed' {
+  if (recording.failed) return 'failed'
+  if (recording.pending) return 'pending'
+  return 'ready'
 }
 
 /**

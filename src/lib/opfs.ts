@@ -1,4 +1,7 @@
 async function root(): Promise<FileSystemDirectoryHandle> {
+  if (!('storage' in navigator) || typeof navigator.storage.getDirectory !== 'function') {
+    throw new Error('This browser does not support local video storage. Use a current Safari, Chrome, or Edge browser.')
+  }
   return navigator.storage.getDirectory()
 }
 

@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Sheet from '../shared/Sheet'
+import ChoiceButton from '../shared/ChoiceButton'
 import { importRecording } from '../../lib/recordings'
 import { isIOS } from '../../lib/platform'
-import { IconArrowRight, IconCamera, IconFile } from '../shared/Icons'
+import { IconCamera, IconFile } from '../shared/Icons'
 
 interface ImportSheetProps {
   open: boolean
@@ -20,9 +21,12 @@ export default function ImportSheet({ open, onClose }: ImportSheetProps) {
     setBusy(true)
     setError(undefined)
     try {
-      const { recording } = await importRecording(file)
+      const { recording, finalizeImport } = await importRecording(file)
+      void finalizeImport.catch((err: unknown) => {
+        console.error('Background import finalize failed', err)
+      })
       onClose()
-      navigate(`/analyzer/${recording.id}`)
+      void navigate(`/analyzer/${recording.id}`)
     } catch (e) {
       console.error(e)
       setError((e as Error).message || 'Import failed')
@@ -62,7 +66,7 @@ export default function ImportSheet({ open, onClose }: ImportSheetProps) {
               disabled={busy}
               onClick={() => {
                 onClose()
-                navigate('/capture')
+                void navigate('/capture')
               }}
               icon={<IconCamera size={20} />}
               label="Record now"
@@ -91,41 +95,5 @@ export default function ImportSheet({ open, onClose }: ImportSheetProps) {
         }}
       />
     </Sheet>
-  )
-}
-
-function ChoiceButton({
-  disabled,
-  onClick,
-  icon,
-  label,
-  hint,
-}: {
-  disabled?: boolean
-  onClick: () => void
-  icon: React.ReactNode
-  label: string
-  hint: string
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className="group flex w-full items-center gap-3 border border-[color:var(--color-border)] bg-transparent px-4 py-3.5 text-left transition-colors active:bg-[color:var(--color-bg-input)] disabled:opacity-50"
-    >
-      <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center border border-[color:var(--color-border)] text-[color:var(--color-text)]">
-        {icon}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-[14px] font-medium text-[color:var(--color-text)]">{label}</span>
-        <span className="mt-0.5 block text-[11px] leading-relaxed text-[color:var(--color-text-muted)]">
-          {hint}
-        </span>
-      </span>
-      <span className="flex-shrink-0 text-[color:var(--color-text-muted)] transition-transform group-active:translate-x-0.5">
-        <IconArrowRight size={16} />
-      </span>
-    </button>
   )
 }

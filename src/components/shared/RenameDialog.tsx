@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import Dialog from './Dialog'
 
 interface RenameDialogProps {
   open: boolean
@@ -24,15 +25,7 @@ export default function RenameDialog({ open, initial, onCancel, onSave }: Rename
   const canSave = trimmed.length > 0 && trimmed !== initial
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6"
-      onClick={onCancel}
-    >
-      <div
-        className="w-full max-w-sm rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-elevated)] p-5 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <p className="label-eyebrow text-[color:var(--color-text-muted)]">Rename</p>
+    <Dialog open={open} kicker="Rename" title="Rename recording" onClose={onCancel}>
         <input
           ref={inputRef}
           value={value}
@@ -60,7 +53,6 @@ export default function RenameDialog({ open, initial, onCancel, onSave }: Rename
             Save
           </button>
         </div>
-      </div>
-    </div>
+    </Dialog>
   )
 }

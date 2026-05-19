@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useRecording } from '../../hooks/useRecordings'
 import { useObjectUrl } from '../../hooks/useObjectUrl'
@@ -9,10 +9,15 @@ import PlaybackControls from './PlaybackControls'
 import ToolPalette from './ToolPalette'
 import AnnotationOverlay from './AnnotationOverlay'
 import { IconBack, IconTrash, IconUndo } from '../shared/Icons'
-import { db } from '../../lib/db'
-import { attachThumbnail, getPendingFile } from '../../lib/recordings'
+import {
+  attachThumbnail,
+  clearRecordingAnnotations,
+  getPendingFile,
+  recordingStatus,
+  updateRecordingAnnotations,
+} from '../../lib/recordings'
 import { captureFrameThumbnail } from '../../lib/videoMeta'
-import type { Annotation } from '../../types'
+import type { Annotation, Recording } from '../../types'
 
 export default function AnalyzerPage() {
   const { id } = useParams()
@@ -24,6 +29,7 @@ export default function AnalyzerPage() {
   const state = useVideoState(video)
   const [speed, setSpeed] = useState(1)
   const [annotations, setAnnotations] = useState<Annotation[]>([])
+  const [annotationError, setAnnotationError] = useState<string | undefined>()
   const hydratedFor = useRef<string | undefined>(undefined)
   const thumbnailCapturedFor = useRef<string | undefined>(undefined)
 
@@ -39,6 +45,7 @@ export default function AnalyzerPage() {
     if (recording && hydratedFor.current !== recording.id) {
       hydratedFor.current = recording.id
       setAnnotations(recording.annotations ?? [])
+      setAnnotationError(undefined)
     }
   }, [recording])
 
@@ -94,7 +101,7 @@ export default function AnalyzerPage() {
     }
 
     if (typeof rv.requestVideoFrameCallback === 'function') {
-      handle = rv.requestVideoFrameCallback!(() => {
+      handle = rv.requestVideoFrameCallback(() => {
         void capture()
       })
     } else {
@@ -117,27 +124,47 @@ export default function AnalyzerPage() {
     }
   }, [video, recording, videoUrl])
 
-  const persist = (next: Annotation[]) => {
+  const persist = useCallback((next: Annotation[], write?: Promise<void>) => {
+    const previous = annotations
     setAnnotations(next)
+    setAnnotationError(undefined)
     if (recording) {
-      void db.recordings.update(recording.id, { annotations: next })
+      ;(write ?? updateRecordingAnnotations(recording.id, next)).catch((err: unknown) => {
+        console.error('Annotation save failed', err)
+        setAnnotations(previous)
+        setAnnotationError('Could not save annotations.')
+      })
     }
-  }
+  }, [annotations, recording])
 
-  const togglePlay = () => {
+  const togglePlay = useCallback(() => {
     if (!video) return
-    if (video.paused) void video.play()
+    if (video.paused) {
+      video.play().catch((err: unknown) => {
+        console.warn('Video play failed', err)
+      })
+    }
     else video.pause()
-  }
+  }, [video])
 
-  const commitAnnotation = (a: Annotation) => persist([...annotations, a])
-  const updateAnnotation = (annotationId: string, partial: Partial<Annotation>) => {
+  const commitAnnotation = useCallback((a: Annotation) => persist([...annotations, a]), [annotations, persist])
+  const updateAnnotation = useCallback((annotationId: string, partial: Partial<Annotation>) => {
     persist(
-      annotations.map((a) => (a.id === annotationId ? ({ ...a, ...partial } as Annotation) : a)),
+      annotations.map((a) => (a.id === annotationId ? { ...a, ...partial } : a)),
     )
-  }
-  const undo = () => persist(annotations.slice(0, -1))
-  const clearAll = () => persist([])
+  }, [annotations, persist])
+  const undo = useCallback(() => persist(annotations.slice(0, -1)), [annotations, persist])
+  const clearAll = useCallback(() => {
+    if (!recording) return
+    persist([], clearRecordingAnnotations(recording.id))
+  }, [persist, recording])
+
+  const setVideoElement = useCallback((node: HTMLVideoElement | null) => {
+    setVideo(node)
+  }, [])
+
+  const stepBack = useCallback(() => stepper.step(-1), [stepper])
+  const stepForward = useCallback(() => stepper.step(1), [stepper])
 
   if (recording === undefined) {
     return (
@@ -165,95 +192,31 @@ export default function AnalyzerPage() {
   const paddedFrame = String(currentFrame).padStart(String(Math.max(total - 1, 0)).length, '0')
   const hasAnnotations = annotations.length > 0
   const scrubReady = state.ready && total > 0
+  const status = recordingStatus(recording)
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-black">
-      <div className="absolute inset-0 flex items-center justify-center">
-        {videoUrl ? (
-          <div
-            className="relative"
-            style={{
-              aspectRatio: `${recording.width} / ${recording.height}`,
-              maxWidth: '100%',
-              maxHeight: '100%',
-              width: '100%',
-            }}
-          >
-            <video
-              ref={setVideo}
-              src={videoUrl}
-              poster={thumbnailUrl}
-              playsInline
-              muted
-              preload="auto"
-              className="absolute inset-0 h-full w-full"
-            />
-            <AnnotationOverlay
-              annotations={annotations}
-              onCommit={commitAnnotation}
-              onUpdate={updateAnnotation}
-            />
-          </div>
-        ) : (
-          <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-[color:var(--color-text-muted)] sl-pulse">
-            Loading source · –:–
-          </p>
-        )}
-      </div>
+      <VideoStage
+        recording={recording}
+        videoUrl={videoUrl}
+        thumbnailUrl={thumbnailUrl}
+        annotations={annotations}
+        onVideo={setVideoElement}
+        onCommit={commitAnnotation}
+        onUpdate={updateAnnotation}
+      />
 
-      <div className="video-ink pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-black/90 via-black/55 to-transparent">
-        <div
-          className="flex items-center gap-2 px-2 pb-6"
-          style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top))' }}
-        >
-          <Link
-            to="/"
-            aria-label="Back"
-            className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full text-white video-ink-icon active:bg-white/10"
-          >
-            <IconBack size={20} />
-          </Link>
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate text-[15px] font-semibold leading-tight text-white">
-              {recording.name}
-            </h1>
-            <p className="mt-1 flex items-center gap-1.5 numeric whitespace-nowrap text-[11px] uppercase tracking-[0.14em] text-white/85">
-              <span>
-                Frame {paddedFrame}
-                <span className="text-white/55"> / {Math.max(total - 1, 0)}</span>
-              </span>
-              <span className="h-2.5 w-px bg-white/40" />
-              <span>{recording.fps ? `${recording.fps} fps` : '— fps'}</span>
-              {recording.pending ? (
-                <>
-                  <span className="h-2.5 w-px bg-white/40" />
-                  <span className="sl-pulse">Saving…</span>
-                </>
-              ) : null}
-            </p>
-          </div>
-          <button
-            type="button"
-            aria-label="Undo"
-            disabled={!hasAnnotations}
-            onClick={undo}
-            className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-md text-white video-ink-icon active:bg-white/10 disabled:opacity-30"
-          >
-            <IconUndo size={18} />
-          </button>
-          <button
-            type="button"
-            aria-label="Clear all"
-            disabled={!hasAnnotations}
-            onClick={clearAll}
-            className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-md text-white video-ink-icon active:bg-white/10 active:text-[color:var(--color-danger)] disabled:opacity-30"
-          >
-            <IconTrash size={18} />
-          </button>
-        </div>
-      </div>
+      <AnalyzerHud
+        recording={recording}
+        paddedFrame={paddedFrame}
+        total={total}
+        hasAnnotations={hasAnnotations}
+        status={status}
+        onUndo={undo}
+        onClearAll={clearAll}
+      />
 
-      {recording.failed ? (
+      {status === 'failed' ? (
         <div className="pointer-events-auto absolute inset-x-0 top-16 z-20 mx-auto max-w-sm px-4">
           <div className="border border-[color:var(--color-danger)] bg-black/80 px-3 py-2 text-[12px] text-[color:var(--color-danger)]">
             Saving this clip failed. Re-import from the library to retry.
@@ -261,34 +224,209 @@ export default function AnalyzerPage() {
         </div>
       ) : null}
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/90 via-black/55 to-transparent">
+      {annotationError ? (
+        <div className="pointer-events-auto absolute inset-x-3 bottom-28 z-20 text-center">
+          <span className="inline-block border border-[color:var(--color-danger)] bg-black/80 px-3 py-2 text-[12px] text-[color:var(--color-danger)]">
+            {annotationError}
+          </span>
+        </div>
+      ) : null}
+
+      <AnalyzerControls
+        frameIndex={stepper.frameIndex}
+        totalFrames={stepper.totalFrames}
+        fps={fps}
+        playing={state.playing}
+        speed={speed}
+        scrubReady={scrubReady}
+        onSeekFrame={stepper.seekToFrame}
+        onTogglePlay={togglePlay}
+        onSpeedChange={setSpeed}
+        onStepBack={stepBack}
+        onStepForward={stepForward}
+      />
+    </div>
+  )
+}
+
+const VideoStage = memo(function VideoStage({
+  recording,
+  videoUrl,
+  thumbnailUrl,
+  annotations,
+  onVideo,
+  onCommit,
+  onUpdate,
+}: {
+  recording: Recording
+  videoUrl: string | undefined
+  thumbnailUrl: string | undefined
+  annotations: Annotation[]
+  onVideo: (node: HTMLVideoElement | null) => void
+  onCommit: (annotation: Annotation) => void
+  onUpdate: (id: string, partial: Partial<Annotation>) => void
+}) {
+  return (
+    <div className="absolute inset-0 flex items-center justify-center">
+      {videoUrl ? (
         <div
-          className="pt-6"
-          style={{ paddingBottom: 'max(0.25rem, env(safe-area-inset-bottom))' }}
+          className="relative"
+          style={{
+            aspectRatio: `${recording.width} / ${recording.height}`,
+            maxWidth: '100%',
+            maxHeight: '100%',
+            width: '100%',
+          }}
         >
-          <ScrubBar
-            frameIndex={stepper.frameIndex}
-            totalFrames={stepper.totalFrames}
-            fps={fps}
-            onSeekFrame={stepper.seekToFrame}
-            disabled={!scrubReady}
+          <video
+            ref={onVideo}
+            src={videoUrl}
+            poster={thumbnailUrl}
+            playsInline
+            muted
+            preload="auto"
+            className="absolute inset-0 h-full w-full"
           />
-          <div className="pointer-events-auto flex items-center justify-between gap-2 px-3 py-1.5">
-            <ToolPalette />
-            <PlaybackControls
-              playing={state.playing}
-              speed={speed}
-              onTogglePlay={togglePlay}
-              onSpeedChange={setSpeed}
-              onStepBack={() => stepper.step(-1)}
-              onStepForward={() => stepper.step(1)}
-            />
-          </div>
+          <AnnotationOverlay
+            annotations={annotations}
+            onCommit={onCommit}
+            onUpdate={onUpdate}
+          />
+        </div>
+      ) : (
+        <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-[color:var(--color-text-muted)] sl-pulse">
+          Loading source · –:–
+        </p>
+      )}
+    </div>
+  )
+})
+
+const AnalyzerHud = memo(function AnalyzerHud({
+  recording,
+  paddedFrame,
+  total,
+  hasAnnotations,
+  status,
+  onUndo,
+  onClearAll,
+}: {
+  recording: Recording
+  paddedFrame: string
+  total: number
+  hasAnnotations: boolean
+  status: 'ready' | 'pending' | 'failed'
+  onUndo: () => void
+  onClearAll: () => void
+}) {
+  return (
+    <div className="video-ink pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-black/90 via-black/55 to-transparent">
+      <div
+        className="flex items-center gap-2 px-2 pb-6"
+        style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top))' }}
+      >
+        <Link
+          to="/"
+          aria-label="Back"
+          className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full text-white video-ink-icon active:bg-white/10"
+        >
+          <IconBack size={20} />
+        </Link>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-[15px] font-semibold leading-tight text-white">
+            {recording.name}
+          </h1>
+          <p className="mt-1 flex items-center gap-1.5 numeric whitespace-nowrap text-[11px] uppercase tracking-[0.14em] text-white/85">
+            <span>
+              Frame {paddedFrame}
+              <span className="text-white/55"> / {Math.max(total - 1, 0)}</span>
+            </span>
+            <span className="h-2.5 w-px bg-white/40" />
+            <span>{recording.fps ? `${recording.fps} fps` : '— fps'}</span>
+            {status === 'pending' ? (
+              <>
+                <span className="h-2.5 w-px bg-white/40" />
+                <span className="sl-pulse">Saving…</span>
+              </>
+            ) : null}
+          </p>
+        </div>
+        <button
+          type="button"
+          aria-label="Undo"
+          disabled={!hasAnnotations}
+          onClick={onUndo}
+          className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-md text-white video-ink-icon active:bg-white/10 disabled:opacity-30"
+        >
+          <IconUndo size={18} />
+        </button>
+        <button
+          type="button"
+          aria-label="Clear all"
+          disabled={!hasAnnotations}
+          onClick={onClearAll}
+          className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-md text-white video-ink-icon active:bg-white/10 active:text-[color:var(--color-danger)] disabled:opacity-30"
+        >
+          <IconTrash size={18} />
+        </button>
+      </div>
+    </div>
+  )
+})
+
+const AnalyzerControls = memo(function AnalyzerControls({
+  frameIndex,
+  totalFrames,
+  fps,
+  playing,
+  speed,
+  scrubReady,
+  onSeekFrame,
+  onTogglePlay,
+  onSpeedChange,
+  onStepBack,
+  onStepForward,
+}: {
+  frameIndex: number
+  totalFrames: number
+  fps: number
+  playing: boolean
+  speed: number
+  scrubReady: boolean
+  onSeekFrame: (frame: number) => void
+  onTogglePlay: () => void
+  onSpeedChange: (speed: number) => void
+  onStepBack: () => void
+  onStepForward: () => void
+}) {
+  return (
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/90 via-black/55 to-transparent">
+      <div
+        className="pt-6"
+        style={{ paddingBottom: 'max(0.25rem, env(safe-area-inset-bottom))' }}
+      >
+        <ScrubBar
+          frameIndex={frameIndex}
+          totalFrames={totalFrames}
+          fps={fps}
+          onSeekFrame={onSeekFrame}
+          disabled={!scrubReady}
+        />
+        <div className="pointer-events-auto flex items-center justify-between gap-2 px-3 py-1.5">
+          <ToolPalette />
+          <PlaybackControls
+            playing={playing}
+            speed={speed}
+            onTogglePlay={onTogglePlay}
+            onSpeedChange={onSpeedChange}
+            onStepBack={onStepBack}
+            onStepForward={onStepForward}
+          />
         </div>
       </div>
     </div>
   )
-}
+})
 
 function CenteredMessage({ children }: { children: React.ReactNode }) {
   return (

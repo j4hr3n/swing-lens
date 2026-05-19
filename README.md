@@ -1,73 +1,70 @@
-# React + TypeScript + Vite
+# Swing Lens
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Swing Lens is a local-only golf swing analyzer. It records or imports video on device, stores clips in browser Origin Private File System storage, and lets users inspect swings frame by frame with line annotations.
 
-Currently, two official plugins are available:
+## Core Flows
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Library: view locally stored recordings grouped by capture/import date.
+- Import: pick video from the camera roll and navigate to the analyzer as soon as metadata is available.
+- Capture: record directly from the browser when `MediaRecorder` and camera access are available.
+- Analyze: scrub, step one frame at a time, control playback speed, and add/edit line annotations.
+- Settings: inspect local storage usage and clear all local data.
 
-## React Compiler
+## Browser And Storage Notes
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Swing Lens uses IndexedDB for recording metadata and annotations, and OPFS for video and thumbnail blobs. Nothing is uploaded to a server.
 
-## Expanding the ESLint configuration
+The app requires a browser with `navigator.storage.getDirectory()` support for durable local video storage. Current Safari, Chrome, and Edge versions are the main targets. iOS Safari has camera and video quirks:
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- `getUserMedia` does not expose iPhone high-speed Slo-Mo modes, so the in-app camera usually records around standard device/browser limits.
+- For 120/240 fps iPhone clips, record in the system Camera app using Slo-Mo, then import the clip.
+- Some iOS videos report infinite duration at metadata load; the app probes duration with a Safari-compatible seek workaround.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Local Development
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+Install dependencies:
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```sh
+pnpm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Start the Vite dev server:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```sh
+pnpm dev
 ```
+
+Build production assets:
+
+```sh
+pnpm build
+```
+
+## Validation
+
+Run the full local validation suite before shipping changes:
+
+```sh
+pnpm lint && pnpm typecheck && pnpm test && pnpm build
+```
+
+Available scripts:
+
+- `pnpm lint`: ESLint with type-aware TypeScript rules.
+- `pnpm typecheck`: TypeScript project build check.
+- `pnpm test`: Vitest unit/component tests.
+- `pnpm test:watch`: Vitest watch mode.
+- `pnpm build`: TypeScript check plus Vite/PWA production build.
+
+## Architecture
+
+- `src/components`: routed screens and shared UI primitives.
+- `src/hooks`: React hooks for recordings, video state, frame stepping, object URLs, and thumbnail URL loading.
+- `src/lib`: persistence, OPFS access, video metadata probing, MP4 FPS parsing, URL caching, and small utilities.
+- `src/store`: app-wide UI state currently limited to annotation color.
+- `src/types`: shared recording and annotation types.
+- `src/test`: test setup and browser API stubs.
+
+The recording service in `src/lib/recordings.ts` owns IndexedDB mutations. UI components should use those service functions instead of writing to Dexie directly.
+
+Object URLs are retained through `src/lib/objectUrlCache.ts` so repeated thumbnail/video consumers share OPFS reads and revoke URLs when the last consumer releases them.

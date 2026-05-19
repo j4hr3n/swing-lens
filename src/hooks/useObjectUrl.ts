@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { readFileURL } from '../lib/opfs'
+import { retainBlobObjectUrl, retainObjectUrl } from '../lib/objectUrlCache'
 
 /**
  * Returns an object URL for an OPFS file. If `pendingFile` is provided, it
@@ -8,16 +8,19 @@ import { readFileURL } from '../lib/opfs'
  */
 export function useObjectUrl(
   fileName: string | undefined,
-  pendingFile?: File | undefined,
+  pendingFile?: File,
 ): string | undefined {
   const [url, setUrl] = useState<string | undefined>()
 
   useEffect(() => {
+    let active = true
+    let release: (() => void) | undefined
+
     if (pendingFile) {
-      const u = URL.createObjectURL(pendingFile)
-      setUrl(u)
+      const retained = retainBlobObjectUrl(`pending:${pendingFile.name}:${pendingFile.size}:${pendingFile.lastModified}`, pendingFile)
+      setUrl(retained.url)
       return () => {
-        URL.revokeObjectURL(u)
+        retained.release()
         setUrl(undefined)
       }
     }
@@ -25,21 +28,19 @@ export function useObjectUrl(
       setUrl(undefined)
       return
     }
-    let revoked = false
-    let createdUrl: string | undefined
-    readFileURL(fileName)
-      .then((u) => {
-        if (revoked) {
-          URL.revokeObjectURL(u)
+    retainObjectUrl(fileName)
+      .then((retained) => {
+        if (!active) {
+          retained.release()
           return
         }
-        createdUrl = u
-        setUrl(u)
+        release = retained.release
+        setUrl(retained.url)
       })
       .catch(() => setUrl(undefined))
     return () => {
-      revoked = true
-      if (createdUrl) URL.revokeObjectURL(createdUrl)
+      active = false
+      release?.()
       setUrl(undefined)
     }
   }, [fileName, pendingFile])

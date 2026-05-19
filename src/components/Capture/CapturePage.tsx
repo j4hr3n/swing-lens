@@ -116,7 +116,7 @@ export default function CapturePage() {
       void finalize(pick.ext, pick.mime)
     }
     recorder.onerror = (e) => {
-      setError((e as ErrorEvent).message ?? 'Recording error')
+      setError(e instanceof ErrorEvent ? e.message : 'Recording error')
       setStatus('error')
     }
     recorderRef.current = recorder
@@ -150,7 +150,7 @@ export default function CapturePage() {
         durationSec,
         fps: trackFps,
       })
-      navigate(`/analyzer/${recording.id}`, { replace: true })
+      void navigate(`/analyzer/${recording.id}`, { replace: true })
     } catch (e) {
       console.error(e)
       setError((e as Error).message || 'Failed to save recording')

@@ -1,27 +1,53 @@
+import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Recording } from '../../types'
-import { useObjectUrl } from '../../hooks/useObjectUrl'
 import { IconDotsVertical, IconPlay } from '../shared/Icons'
 
 interface RecordingTileProps {
   recording: Recording
+  thumbnailUrl: string | undefined
+  onVisible: (id: string) => void
   onMenu: (recording: Recording) => void
 }
 
-export default function RecordingTile({ recording, onMenu }: RecordingTileProps) {
+export default function RecordingTile({
+  recording,
+  thumbnailUrl,
+  onVisible,
+  onMenu,
+}: RecordingTileProps) {
   const navigate = useNavigate()
-  const thumbUrl = useObjectUrl(recording.thumbnailFileName)
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const node = rootRef.current
+    if (!node) return
+    if (!('IntersectionObserver' in window)) {
+      onVisible(recording.id)
+      return
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        onVisible(recording.id)
+        observer.disconnect()
+      }
+    }, { rootMargin: '160px' })
+
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [onVisible, recording.id])
 
   return (
-    <div className="group relative">
+    <div ref={rootRef} className="group relative">
       <button
         type="button"
         onClick={() => navigate(`/analyzer/${recording.id}`)}
         className="block aspect-[3/4] w-full overflow-hidden border border-[color:var(--color-border)] bg-[color:var(--color-bg-input)]"
       >
-        {thumbUrl ? (
+        {thumbnailUrl ? (
           <img
-            src={thumbUrl}
+            src={thumbnailUrl}
             alt=""
             className="h-full w-full object-cover"
             draggable={false}
